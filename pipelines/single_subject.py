@@ -50,7 +50,7 @@ class SingleSubjectPipeline:
         self.logger = None
 
     def run(self, subject_id: str, data_dir: str, output_dir: str,
-            skip_steps: list = None) -> dict:
+            skip_steps: list = None, start_volume: int = None) -> dict:
         """
         Run complete pipeline for single subject.
 
@@ -64,6 +64,8 @@ class SingleSubjectPipeline:
             Output directory for results
         skip_steps : list, optional
             List of steps to skip
+        start_volume : int, optional
+            First volume to keep (1-indexed). If None, uses config value.
 
         Returns
         -------
@@ -72,6 +74,10 @@ class SingleSubjectPipeline:
         """
         if skip_steps is None:
             skip_steps = []
+
+        # Use provided start_volume or fall back to config
+        if start_volume is None:
+            start_volume = self.config['data'].get('fmri_start_volume', 7)
 
         # Setup logging
         log_dir = Path(output_dir) / 'logs'
@@ -121,8 +127,8 @@ class SingleSubjectPipeline:
                     raise ValueError(f"Invalid subject data: {validation['errors']}")
 
                 # Load functional data
-                fmri_start_volume = self.config['data'].get('fmri_start_volume', 7)
-                func_img, func_meta = loader.load_fmri_data(subject_id, fmri_start_volume)
+                self.logger.info(f"Using start_volume = {start_volume} (first {start_volume - 1} volumes will be removed)")
+                func_img, func_meta = loader.load_fmri_data(subject_id, start_volume)
 
                 # Save loaded functional data
                 func_file = preproc_dir / f'{subject_id}_func_raw.nii.gz'
@@ -393,6 +399,12 @@ Examples:
 
   # Use custom config
   python single_subject.py sub-001 /path/to/data /path/to/output --config my_config.yaml
+
+  # Keep volumes starting from 10 (remove first 9)
+  python single_subject.py sub-001 /path/to/data /path/to/output --start-volume 10
+
+  # Keep all volumes (no removal)
+  python single_subject.py sub-001 /path/to/data /path/to/output --start-volume 1
         """
     )
 
@@ -401,6 +413,8 @@ Examples:
     parser.add_argument('output_dir', help='Output directory for results')
     parser.add_argument('--config', help='Configuration file path')
     parser.add_argument('--skip', nargs='+', help='Steps to skip')
+    parser.add_argument('--start-volume', type=int, metavar='N',
+                        help='First volume to keep (1-indexed). Default: 7 (removes first 6 volumes)')
 
     args = parser.parse_args()
 
@@ -412,7 +426,8 @@ Examples:
             args.subject_id,
             args.data_dir,
             args.output_dir,
-            skip_steps=args.skip
+            skip_steps=args.skip,
+            start_volume=args.start_volume
         )
 
         print("\n" + "="*80)
