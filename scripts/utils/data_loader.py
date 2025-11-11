@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data loading utilities for Analyze format (hdr/img) fMRI data.
+Data loading utilities for NIfTI format (.nii.gz) fMRI data.
 Handles loading and basic validation of neuroimaging data.
 """
 
@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class AnalyzeDataLoader:
-    """Loader for Analyze format neuroimaging data (hdr/img files)."""
+class NiftiDataLoader:
+    """Loader for NIfTI format neuroimaging data (.nii.gz files)."""
 
     def __init__(self, data_dir: str):
         """
@@ -29,39 +29,34 @@ class AnalyzeDataLoader:
         """
         self.data_dir = Path(data_dir)
 
-    def load_analyze_image(self, hdr_path: str) -> nib.analyze.AnalyzeImage:
+    def load_nifti_image(self, nifti_path: str) -> nib.Nifti1Image:
         """
-        Load an Analyze format image.
+        Load a NIfTI format image.
 
         Parameters
         ----------
-        hdr_path : str
-            Path to .hdr file
+        nifti_path : str
+            Path to .nii.gz file
 
         Returns
         -------
-        nibabel.analyze.AnalyzeImage
+        nibabel.Nifti1Image
             Loaded image
         """
-        hdr_path = Path(hdr_path)
+        nifti_path = Path(nifti_path)
 
-        if not hdr_path.exists():
-            raise FileNotFoundError(f"Header file not found: {hdr_path}")
-
-        # Check for corresponding .img file
-        img_path = hdr_path.with_suffix('.img')
-        if not img_path.exists():
-            raise FileNotFoundError(f"Image file not found: {img_path}")
+        if not nifti_path.exists():
+            raise FileNotFoundError(f"NIfTI file not found: {nifti_path}")
 
         try:
-            img = nib.load(str(hdr_path))
-            logger.info(f"Loaded: {hdr_path.name}")
+            img = nib.load(str(nifti_path))
+            logger.info(f"Loaded: {nifti_path.name}")
             logger.info(f"  Shape: {img.shape}")
             logger.info(f"  Affine:\n{img.affine}")
             return img
 
         except Exception as e:
-            logger.error(f"Error loading {hdr_path}: {e}")
+            logger.error(f"Error loading {nifti_path}: {e}")
             raise
 
     def load_fmri_data(self, subject_id: str, start_volume: int = 7) -> Tuple[nib.Nifti1Image, dict]:
@@ -88,28 +83,32 @@ class AnalyzeDataLoader:
         if not func_dir.exists():
             raise FileNotFoundError(f"Functional directory not found: {func_dir}")
 
-        # Find .hdr files
-        hdr_files = sorted(list(func_dir.glob('*.hdr')))
+        # Find .nii.gz files
+        nifti_files = sorted(list(func_dir.glob('*.nii.gz')))
 
-        if not hdr_files:
-            raise FileNotFoundError(f"No .hdr files found in {func_dir}")
+        if not nifti_files:
+            # Try .nii files
+            nifti_files = sorted(list(func_dir.glob('*.nii')))
+
+        if not nifti_files:
+            raise FileNotFoundError(f"No .nii.gz or .nii files found in {func_dir}")
 
         # Check if it's a 3D series (multiple files) or single 4D file
-        if len(hdr_files) > 1:
-            logger.info(f"Found {len(hdr_files)} 3D volumes, will concatenate into 4D")
-            return self._load_3d_series(hdr_files, subject_id, start_volume)
+        if len(nifti_files) > 1:
+            logger.info(f"Found {len(nifti_files)} 3D volumes, will concatenate into 4D")
+            return self._load_3d_series(nifti_files, subject_id, start_volume)
         else:
             logger.info(f"Found single file, assuming 4D volume")
-            return self._load_4d_single(hdr_files[0], subject_id, start_volume)
+            return self._load_4d_single(nifti_files[0], subject_id, start_volume)
 
-    def _load_3d_series(self, hdr_files: list, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
+    def _load_3d_series(self, nifti_files: list, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
         """
-        Load series of 3D Analyze files and concatenate into 4D.
+        Load series of 3D NIfTI files and concatenate into 4D.
 
         Parameters
         ----------
-        hdr_files : list
-            List of .hdr file paths (sorted)
+        nifti_files : list
+            List of .nii.gz file paths (sorted)
         subject_id : str
             Subject identifier
         start_volume : int
@@ -126,15 +125,15 @@ class AnalyzeDataLoader:
 
         # Extract volume numbers from filenames
         volume_info = []
-        for hdr_file in hdr_files:
+        for nifti_file in nifti_files:
             # Pattern: xxxx_0007, xxxx_0008, etc.
-            match = re.search(r'_(\d{4})\.hdr$', hdr_file.name)
+            match = re.search(r'_(\d{4})\.nii', nifti_file.name)
             if match:
                 vol_num = int(match.group(1))
-                volume_info.append((vol_num, hdr_file))
+                volume_info.append((vol_num, nifti_file))
             else:
                 # If no number found, use original order
-                volume_info.append((len(volume_info), hdr_file))
+                volume_info.append((len(volume_info), nifti_file))
 
         # Sort by volume number
         volume_info.sort(key=lambda x: x[0])
@@ -146,13 +145,13 @@ class AnalyzeDataLoader:
         affine = None
         header = None
 
-        for vol_num, hdr_path in volume_info:
-            img = self.load_analyze_image(str(hdr_path))
+        for vol_num, nifti_path in volume_info:
+            img = self.load_nifti_image(str(nifti_path))
             data = img.get_fdata()
 
             # Ensure 3D
             if len(data.shape) != 3:
-                logger.warning(f"Expected 3D volume, got shape {data.shape} for {hdr_path.name}")
+                logger.warning(f"Expected 3D volume, got shape {data.shape} for {nifti_path.name}")
                 if len(data.shape) == 4 and data.shape[3] == 1:
                     data = data[:, :, :, 0]
                 else:
@@ -200,14 +199,14 @@ class AnalyzeDataLoader:
 
         return img_4d, metadata
 
-    def _load_4d_single(self, hdr_path: Path, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
+    def _load_4d_single(self, nifti_path: Path, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
         """
-        Load single 4D Analyze file.
+        Load single 4D NIfTI file.
 
         Parameters
         ----------
-        hdr_path : Path
-            Path to .hdr file
+        nifti_path : Path
+            Path to .nii.gz file
         subject_id : str
             Subject identifier
         start_volume : int
@@ -221,7 +220,7 @@ class AnalyzeDataLoader:
             Metadata
         """
         # Load image
-        img = self.load_analyze_image(str(hdr_path))
+        img = self.load_nifti_image(str(nifti_path))
 
         # Get data array
         data = img.get_fdata()
@@ -246,7 +245,7 @@ class AnalyzeDataLoader:
 
         metadata = {
             'subject_id': subject_id,
-            'original_path': str(hdr_path),
+            'original_path': str(nifti_path),
             'original_volumes': n_volumes,
             'start_volume': start_volume,
             'remaining_volumes': data_trimmed.shape[3],
@@ -277,32 +276,32 @@ class AnalyzeDataLoader:
         if not anat_dir.exists():
             raise FileNotFoundError(f"Anatomical directory not found: {anat_dir}")
 
-        # Find T1 .hdr file
-        hdr_files = list(anat_dir.glob('*T1*.hdr')) or list(anat_dir.glob('*.hdr'))
+        # Find T1 .nii.gz file
+        nifti_files = list(anat_dir.glob('*T1*.nii.gz')) or list(anat_dir.glob('*.nii.gz'))
 
-        if not hdr_files:
-            raise FileNotFoundError(f"No .hdr files found in {anat_dir}")
+        if not nifti_files:
+            # Try .nii files
+            nifti_files = list(anat_dir.glob('*T1*.nii')) or list(anat_dir.glob('*.nii'))
 
-        if len(hdr_files) > 1:
-            logger.warning(f"Multiple .hdr files found in {anat_dir}. Using first one.")
+        if not nifti_files:
+            raise FileNotFoundError(f"No .nii.gz or .nii files found in {anat_dir}")
 
-        hdr_path = hdr_files[0]
+        if len(nifti_files) > 1:
+            logger.warning(f"Multiple NIfTI files found in {anat_dir}. Using first one.")
+
+        nifti_path = nifti_files[0]
 
         # Load image
-        img = self.load_analyze_image(hdr_path)
-
-        # Convert to NIfTI
-        data = img.get_fdata()
-        img_nifti = nib.Nifti1Image(data, img.affine, img.header)
+        img = self.load_nifti_image(str(nifti_path))
 
         metadata = {
             'subject_id': subject_id,
-            'original_path': str(hdr_path),
-            'shape': data.shape,
+            'original_path': str(nifti_path),
+            'shape': img.shape,
             'voxel_size': img.header.get_zooms()[:3],
         }
 
-        return img_nifti, metadata
+        return img, metadata
 
     def get_subject_list(self) -> List[str]:
         """
@@ -359,10 +358,10 @@ class AnalyzeDataLoader:
             results['valid'] = False
             results['errors'].append(f"Anatomical directory not found: {anat_dir}")
         else:
-            anat_files = list(anat_dir.glob('*.hdr'))
+            anat_files = list(anat_dir.glob('*.nii.gz')) or list(anat_dir.glob('*.nii'))
             if not anat_files:
                 results['valid'] = False
-                results['errors'].append(f"No anatomical .hdr files found in {anat_dir}")
+                results['errors'].append(f"No anatomical .nii.gz files found in {anat_dir}")
 
         # Check functional data
         func_dir = subject_dir / 'func'
@@ -370,34 +369,16 @@ class AnalyzeDataLoader:
             results['valid'] = False
             results['errors'].append(f"Functional directory not found: {func_dir}")
         else:
-            func_files = list(func_dir.glob('*.hdr'))
+            func_files = list(func_dir.glob('*.nii.gz')) or list(func_dir.glob('*.nii'))
             if not func_files:
                 results['valid'] = False
-                results['errors'].append(f"No functional .hdr files found in {func_dir}")
+                results['errors'].append(f"No functional .nii.gz files found in {func_dir}")
 
         return results
 
 
-def convert_analyze_to_nifti(analyze_path: str, output_path: str) -> None:
-    """
-    Convert Analyze format to NIfTI format.
-
-    Parameters
-    ----------
-    analyze_path : str
-        Path to .hdr file
-    output_path : str
-        Output .nii or .nii.gz path
-    """
-    img = nib.load(analyze_path)
-    data = img.get_fdata()
-
-    # Create NIfTI image
-    nifti_img = nib.Nifti1Image(data, img.affine, img.header)
-
-    # Save
-    nib.save(nifti_img, output_path)
-    logger.info(f"Converted {analyze_path} -> {output_path}")
+# Backward compatibility alias
+AnalyzeDataLoader = NiftiDataLoader
 
 
 if __name__ == '__main__':
@@ -409,7 +390,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     data_dir = sys.argv[1]
-    loader = AnalyzeDataLoader(data_dir)
+    loader = NiftiDataLoader(data_dir)
 
     # Get subject list
     subjects = loader.get_subject_list()

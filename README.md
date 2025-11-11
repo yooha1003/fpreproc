@@ -141,44 +141,41 @@ This will:
 
 Place your data in the following structure:
 
-### Option 1: 3D Series (Multiple Files per Subject)
+### Option 1: Single 4D NIfTI File per Subject (Recommended)
 ```
 data/raw/
 ├── sub-001/
 │   ├── anat/
-│   │   ├── T1.hdr
-│   │   └── T1.img
+│   │   └── T1.nii.gz
 │   └── func/
-│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0007.hdr
-│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0007.img
-│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0008.hdr
-│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0008.img
-│       └── ... (multiple 3D volumes from 0007 to 0281+)
+│       └── func.nii.gz
 ├── sub-002/
 │   └── ...
 └── sub-003/
     └── ...
 ```
 
-### Option 2: Single 4D File per Subject
+### Option 2: 3D NIfTI Series (Multiple Files per Subject)
 ```
 data/raw/
 ├── sub-001/
 │   ├── anat/
-│   │   ├── T1.hdr
-│   │   └── T1.img
+│   │   └── T1.nii.gz
 │   └── func/
-│       ├── rest.hdr
-│       └── rest.img
+│       ├── func_0007.nii.gz
+│       ├── func_0008.nii.gz
+│       └── ... (multiple 3D volumes)
 ├── sub-002/
 │   └── ...
 ```
 
 **Important Notes**:
 - The pipeline automatically detects and handles both formats
+- **NIfTI format** (`.nii.gz` or `.nii`) is required
 - For **3D series**: Files are sorted by volume number (e.g., `_0007`, `_0008`) and concatenated into 4D
 - The **first 6 volumes** are automatically removed (configurable: `fmri_start_volume: 7` in `config/pipeline_config.yaml`)
-- Files must be in **Analyze format** (`.hdr`/`.img` pairs)
+- Anatomical file can be named `T1.nii.gz` or any file containing "T1" in the name
+- Functional file can be named `func.nii.gz`, `rest.nii.gz`, or any `.nii.gz` file in the func/ directory
 
 ## Usage
 
