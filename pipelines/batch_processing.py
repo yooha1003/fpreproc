@@ -41,7 +41,8 @@ class BatchProcessor:
         self.config_path = config_path
 
     def process_subject(self, subject_id: str, data_dir: str,
-                       output_dir: str, skip_steps: list = None) -> dict:
+                       output_dir: str, skip_steps: list = None,
+                       start_volume: int = None) -> dict:
         """
         Process a single subject (wrapper for parallel execution).
 
@@ -55,6 +56,8 @@ class BatchProcessor:
             Output directory
         skip_steps : list, optional
             Steps to skip
+        start_volume : int, optional
+            First volume to keep (1-indexed)
 
         Returns
         -------
@@ -65,7 +68,7 @@ class BatchProcessor:
 
         try:
             pipeline = SingleSubjectPipeline(self.config_path)
-            results = pipeline.run(subject_id, data_dir, output_dir, skip_steps)
+            results = pipeline.run(subject_id, data_dir, output_dir, skip_steps, start_volume)
             results['success'] = True
 
             logger.info(f"✓ {subject_id} completed successfully")
@@ -83,7 +86,7 @@ class BatchProcessor:
             }
 
     def run_sequential(self, subjects: list, data_dir: str, output_dir: str,
-                      skip_steps: list = None) -> dict:
+                      skip_steps: list = None, start_volume: int = None) -> dict:
         """
         Run batch processing sequentially.
 
@@ -97,6 +100,8 @@ class BatchProcessor:
             Output directory
         skip_steps : list, optional
             Steps to skip
+        start_volume : int, optional
+            First volume to keep (1-indexed)
 
         Returns
         -------
@@ -109,6 +114,8 @@ class BatchProcessor:
         logger.info(f"Subjects: {len(subjects)}")
         logger.info(f"Data directory: {data_dir}")
         logger.info(f"Output directory: {output_dir}")
+        if start_volume:
+            logger.info(f"Start volume: {start_volume}")
         logger.info("="*80)
 
         start_time = datetime.now()
@@ -117,7 +124,7 @@ class BatchProcessor:
         for i, subject_id in enumerate(subjects, 1):
             logger.info(f"\n[{i}/{len(subjects)}] Processing {subject_id}...")
 
-            result = self.process_subject(subject_id, data_dir, output_dir, skip_steps)
+            result = self.process_subject(subject_id, data_dir, output_dir, skip_steps, start_volume)
             results.append(result)
 
         end_time = datetime.now()
@@ -129,7 +136,7 @@ class BatchProcessor:
         return summary
 
     def run_parallel(self, subjects: list, data_dir: str, output_dir: str,
-                    skip_steps: list = None, n_jobs: int = None) -> dict:
+                    skip_steps: list = None, n_jobs: int = None, start_volume: int = None) -> dict:
         """
         Run batch processing in parallel.
 
@@ -145,6 +152,8 @@ class BatchProcessor:
             Steps to skip
         n_jobs : int, optional
             Number of parallel jobs (default: number of CPUs)
+        start_volume : int, optional
+            First volume to keep (1-indexed)
 
         Returns
         -------
@@ -164,6 +173,8 @@ class BatchProcessor:
         logger.info(f"Parallel jobs: {n_jobs}")
         logger.info(f"Data directory: {data_dir}")
         logger.info(f"Output directory: {output_dir}")
+        if start_volume:
+            logger.info(f"Start volume: {start_volume}")
         logger.info("="*80)
 
         start_time = datetime.now()
@@ -175,7 +186,7 @@ class BatchProcessor:
             future_to_subject = {
                 executor.submit(
                     self.process_subject,
-                    subject_id, data_dir, output_dir, skip_steps
+                    subject_id, data_dir, output_dir, skip_steps, start_volume
                 ): subject_id
                 for subject_id in subjects
             }
@@ -256,7 +267,8 @@ class BatchProcessor:
             subjects: list = None,
             parallel: bool = True,
             n_jobs: int = None,
-            skip_steps: list = None) -> dict:
+            skip_steps: list = None,
+            start_volume: int = None) -> dict:
         """
         Run batch processing.
 
@@ -274,6 +286,8 @@ class BatchProcessor:
             Number of parallel jobs
         skip_steps : list, optional
             Steps to skip
+        start_volume : int, optional
+            First volume to keep (1-indexed)
 
         Returns
         -------
@@ -293,10 +307,10 @@ class BatchProcessor:
         # Run processing
         if parallel and self.config['parallel'].get('enable', True):
             summary = self.run_parallel(subjects, data_dir, output_dir,
-                                       skip_steps, n_jobs)
+                                       skip_steps, n_jobs, start_volume)
         else:
             summary = self.run_sequential(subjects, data_dir, output_dir,
-                                         skip_steps)
+                                         skip_steps, start_volume)
 
         # Save summary
         output_dir = Path(output_dir)
@@ -353,6 +367,12 @@ Examples:
 
   # Skip specific pipeline steps
   python batch_processing.py /path/to/data /path/to/output --skip motion_correction
+
+  # Keep volumes starting from 10 (remove first 9)
+  python batch_processing.py /path/to/data /path/to/output --start-volume 10
+
+  # Keep all volumes (no removal)
+  python batch_processing.py /path/to/data /path/to/output --start-volume 1
         """
     )
 
@@ -362,6 +382,8 @@ Examples:
     parser.add_argument('--sequential', action='store_true', help='Run sequentially (not parallel)')
     parser.add_argument('--n-jobs', type=int, help='Number of parallel jobs')
     parser.add_argument('--skip', nargs='+', help='Steps to skip')
+    parser.add_argument('--start-volume', type=int, metavar='N',
+                        help='First volume to keep (1-indexed). Default: 7 (removes first 6 volumes)')
     parser.add_argument('--config', help='Configuration file path')
 
     args = parser.parse_args()
@@ -376,7 +398,8 @@ Examples:
             subjects=args.subjects,
             parallel=not args.sequential,
             n_jobs=args.n_jobs,
-            skip_steps=args.skip
+            skip_steps=args.skip,
+            start_volume=args.start_volume
         )
 
         # Exit code based on success
