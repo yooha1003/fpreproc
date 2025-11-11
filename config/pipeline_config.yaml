@@ -3,7 +3,7 @@
 
 # Data Configuration
 data:
-  format: "analyze"  # hdr/img format (Analyze 7.5)
+  format: "nifti"  # NIfTI format (.nii.gz or .nii)
   fmri_start_volume: 7  # First 6 volumes removed
   tr: 2.0  # Repetition time in seconds (adjust to your data)
 

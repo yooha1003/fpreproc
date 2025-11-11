@@ -14,7 +14,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 from utils.helpers import load_config, setup_logging, save_metadata
-from utils.data_loader import AnalyzeDataLoader
+from utils.data_loader import NiftiDataLoader
 from utils.quality_control import QualityControl
 
 # Preprocessing
@@ -112,7 +112,7 @@ class SingleSubjectPipeline:
                 self.logger.info("STEP 1: Loading Data")
                 self.logger.info("="*80)
 
-                loader = AnalyzeDataLoader(data_dir)
+                loader = NiftiDataLoader(data_dir)
 
                 # Validate subject data
                 validation = loader.validate_subject_data(subject_id)

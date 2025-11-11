@@ -16,7 +16,7 @@ import multiprocessing as mp
 sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 from utils.helpers import load_config, setup_logging, save_metadata
-from utils.data_loader import AnalyzeDataLoader
+from utils.data_loader import NiftiDataLoader
 
 # Import single subject pipeline
 from single_subject import SingleSubjectPipeline
@@ -282,7 +282,7 @@ class BatchProcessor:
         """
         # Get subject list if not provided
         if subjects is None:
-            loader = AnalyzeDataLoader(data_dir)
+            loader = NiftiDataLoader(data_dir)
             subjects = loader.get_subject_list()
 
             if not subjects:
