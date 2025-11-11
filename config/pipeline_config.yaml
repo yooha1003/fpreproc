@@ -1,0 +1,170 @@
+# fMRI Preprocessing Pipeline Configuration
+# Optimized for epilepsy research with resting-state fMRI
+
+# Data Configuration
+data:
+  format: "analyze"  # hdr/img format (Analyze 7.5)
+  fmri_start_volume: 7  # First 6 volumes removed
+  tr: 2.0  # Repetition time in seconds (adjust to your data)
+
+# Preprocessing Parameters
+preprocessing:
+  # Motion correction
+  motion_correction:
+    reference_volume: "middle"  # or "mean", "first"
+    cost_function: "normcorr"  # normalized correlation
+
+  # Slice timing correction
+  slice_timing:
+    enable: true
+    slice_order: "interleaved"  # or "sequential_ascending", "sequential_descending"
+    ref_slice: "middle"
+
+  # Spatial smoothing
+  smoothing:
+    fwhm: 6  # Full-width half-maximum in mm (standard for epilepsy studies)
+
+  # Temporal filtering
+  temporal_filtering:
+    highpass: 0.01  # Hz
+    lowpass: 0.1    # Hz (typical for resting-state)
+
+  # Detrending
+  detrending:
+    enable: true
+    polynomial_order: 2
+
+  # Nuisance regression
+  nuisance_regression:
+    enable: true
+    components:
+      - "white_matter"
+      - "csf"
+      - "motion_parameters"  # 6 motion parameters
+      - "motion_derivatives"  # temporal derivatives
+      - "motion_squared"     # squared motion parameters
+
+# Registration Parameters
+registration:
+  # Functional to anatomical
+  func_to_anat:
+    cost_function: "bbr"  # Boundary-Based Registration
+    dof: 6  # Degrees of freedom
+
+  # Anatomical to standard space
+  anat_to_standard:
+    template: "MNI152_T1_2mm_brain.nii.gz"
+    cost_function: "corratio"
+    dof: 12
+    nonlinear: true  # Use ANTs SyN for nonlinear registration
+
+# Atlas Configuration
+atlas:
+  # Multiple atlases for different analyses
+  parcellations:
+    - name: "AAL"
+      file: "AAL116.nii.gz"
+      n_rois: 116
+
+    - name: "Schaefer"
+      file: "Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz"
+      n_rois: 400
+
+    - name: "Power"
+      file: "Power264.nii.gz"
+      n_rois: 264
+
+    - name: "Dosenbach"
+      file: "Dosenbach160.nii.gz"
+      n_rois: 160
+
+  default: "AAL"  # Default atlas for analysis
+
+# Connectivity Analysis
+connectivity:
+  # Functional Connectivity
+  functional:
+    methods:
+      - "correlation"  # Pearson correlation
+      - "partial_correlation"
+      - "tangent"  # Tangent space embedding
+    threshold: 0.3  # Threshold for sparse networks
+
+  # ICA Parameters
+  ica:
+    n_components: 20  # Number of independent components
+    algorithm: "fastica"
+    max_iter: 200
+    tolerance: 0.0001
+
+  # Effective Connectivity (DCM-like using GCM/Granger Causality)
+  effective:
+    methods:
+      - "granger"  # Granger causality
+      - "transfer_entropy"
+    max_lag: 5  # Maximum time lag for GC
+    significance_level: 0.05
+
+# Quality Control
+quality_control:
+  # Motion thresholds
+  motion_threshold:
+    fd_threshold: 0.5  # Framewise displacement (mm)
+    dvars_threshold: 5  # DVARS threshold
+
+  # Outlier detection
+  outlier_detection:
+    enable: true
+    method: "iqr"  # Interquartile range
+
+  # Registration QC
+  registration_qc:
+    generate_overlay: true
+    generate_edge_overlay: true
+
+# Visualization
+visualization:
+  # Glass brain parameters
+  glass_brain:
+    display_mode: "lyrz"  # Left, Y, Right, Z views
+    colormap: "jet"
+    edge_threshold: "95%"  # Show top 5% connections
+    node_size: 50
+
+  # Network graph parameters
+  network:
+    layout: "spring"  # or "circular", "kamada_kawai"
+    node_color_by: "module"  # or "degree", "betweenness"
+    edge_width_by: "weight"
+
+  # Activation maps
+  activation:
+    colormap: "cold_hot"
+    threshold: 2.3  # Z-score threshold
+    alpha: 0.7
+
+# Output Configuration
+output:
+  # Save intermediate results
+  save_intermediate: true
+
+  # Compression
+  compress_nifti: true
+
+  # Report generation
+  generate_reports: true
+  report_format: "html"  # or "pdf"
+
+  # Figure format
+  figure_format: "png"  # or "svg", "pdf"
+  figure_dpi: 300
+
+# Parallel Processing
+parallel:
+  enable: true
+  n_jobs: 4  # Number of parallel jobs (-1 for all CPUs)
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  save_log: true
