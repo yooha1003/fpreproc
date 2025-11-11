@@ -67,6 +67,7 @@ class AnalyzeDataLoader:
     def load_fmri_data(self, subject_id: str, start_volume: int = 7) -> Tuple[nib.Nifti1Image, dict]:
         """
         Load fMRI data for a subject, removing initial volumes.
+        Handles both single 4D files and series of 3D files.
 
         Parameters
         ----------
@@ -87,19 +88,140 @@ class AnalyzeDataLoader:
         if not func_dir.exists():
             raise FileNotFoundError(f"Functional directory not found: {func_dir}")
 
-        # Find .hdr file
-        hdr_files = list(func_dir.glob('*.hdr'))
+        # Find .hdr files
+        hdr_files = sorted(list(func_dir.glob('*.hdr')))
 
         if not hdr_files:
             raise FileNotFoundError(f"No .hdr files found in {func_dir}")
 
+        # Check if it's a 3D series (multiple files) or single 4D file
         if len(hdr_files) > 1:
-            logger.warning(f"Multiple .hdr files found in {func_dir}. Using first one.")
+            logger.info(f"Found {len(hdr_files)} 3D volumes, will concatenate into 4D")
+            return self._load_3d_series(hdr_files, subject_id, start_volume)
+        else:
+            logger.info(f"Found single file, assuming 4D volume")
+            return self._load_4d_single(hdr_files[0], subject_id, start_volume)
 
-        hdr_path = hdr_files[0]
+    def _load_3d_series(self, hdr_files: list, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
+        """
+        Load series of 3D Analyze files and concatenate into 4D.
 
+        Parameters
+        ----------
+        hdr_files : list
+            List of .hdr file paths (sorted)
+        subject_id : str
+            Subject identifier
+        start_volume : int
+            First volume to keep
+
+        Returns
+        -------
+        img : nibabel.Nifti1Image
+            4D fMRI image
+        metadata : dict
+            Metadata
+        """
+        import re
+
+        # Extract volume numbers from filenames
+        volume_info = []
+        for hdr_file in hdr_files:
+            # Pattern: xxxx_0007, xxxx_0008, etc.
+            match = re.search(r'_(\d{4})\.hdr$', hdr_file.name)
+            if match:
+                vol_num = int(match.group(1))
+                volume_info.append((vol_num, hdr_file))
+            else:
+                # If no number found, use original order
+                volume_info.append((len(volume_info), hdr_file))
+
+        # Sort by volume number
+        volume_info.sort(key=lambda x: x[0])
+
+        logger.info(f"Volume range: {volume_info[0][0]:04d} to {volume_info[-1][0]:04d}")
+
+        # Load all volumes
+        volumes = []
+        affine = None
+        header = None
+
+        for vol_num, hdr_path in volume_info:
+            img = self.load_analyze_image(str(hdr_path))
+            data = img.get_fdata()
+
+            # Ensure 3D
+            if len(data.shape) != 3:
+                logger.warning(f"Expected 3D volume, got shape {data.shape} for {hdr_path.name}")
+                if len(data.shape) == 4 and data.shape[3] == 1:
+                    data = data[:, :, :, 0]
+                else:
+                    continue
+
+            volumes.append(data)
+
+            if affine is None:
+                affine = img.affine
+                header = img.header
+
+        if not volumes:
+            raise ValueError("No valid 3D volumes loaded")
+
+        # Stack into 4D
+        data_4d = np.stack(volumes, axis=-1)
+        logger.info(f"Created 4D volume: {data_4d.shape}")
+
+        n_volumes = data_4d.shape[3]
+
+        # Remove initial volumes
+        if start_volume > 1:
+            if start_volume > n_volumes:
+                raise ValueError(f"start_volume ({start_volume}) exceeds total volumes ({n_volumes})")
+
+            logger.info(f"Removing first {start_volume - 1} volumes")
+            data_trimmed = data_4d[:, :, :, start_volume - 1:]
+            logger.info(f"Remaining volumes: {data_trimmed.shape[3]}")
+        else:
+            data_trimmed = data_4d
+
+        # Create NIfTI image
+        img_4d = nib.Nifti1Image(data_trimmed, affine, header)
+
+        metadata = {
+            'subject_id': subject_id,
+            'original_files': [str(f) for _, f in volume_info],
+            'original_volumes': n_volumes,
+            'start_volume': start_volume,
+            'remaining_volumes': data_trimmed.shape[3],
+            'shape': data_trimmed.shape,
+            'voxel_size': header.get_zooms()[:3],
+            'volume_range': f"{volume_info[0][0]:04d}-{volume_info[-1][0]:04d}",
+        }
+
+        return img_4d, metadata
+
+    def _load_4d_single(self, hdr_path: Path, subject_id: str, start_volume: int) -> Tuple[nib.Nifti1Image, dict]:
+        """
+        Load single 4D Analyze file.
+
+        Parameters
+        ----------
+        hdr_path : Path
+            Path to .hdr file
+        subject_id : str
+            Subject identifier
+        start_volume : int
+            First volume to keep
+
+        Returns
+        -------
+        img : nibabel.Nifti1Image
+            4D fMRI image
+        metadata : dict
+            Metadata
+        """
         # Load image
-        img = self.load_analyze_image(hdr_path)
+        img = self.load_analyze_image(str(hdr_path))
 
         # Get data array
         data = img.get_fdata()

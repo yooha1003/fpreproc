@@ -141,6 +141,26 @@ This will:
 
 Place your data in the following structure:
 
+### Option 1: 3D Series (Multiple Files per Subject)
+```
+data/raw/
+├── sub-001/
+│   ├── anat/
+│   │   ├── T1.hdr
+│   │   └── T1.img
+│   └── func/
+│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0007.hdr
+│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0007.img
+│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0008.hdr
+│       ├── xxxx_001_004_ep2d_fid_basic_bold_p2_Epilepsy-1_0008.img
+│       └── ... (multiple 3D volumes from 0007 to 0281+)
+├── sub-002/
+│   └── ...
+└── sub-003/
+    └── ...
+```
+
+### Option 2: Single 4D File per Subject
 ```
 data/raw/
 ├── sub-001/
@@ -152,11 +172,13 @@ data/raw/
 │       └── rest.img
 ├── sub-002/
 │   └── ...
-└── sub-003/
-    └── ...
 ```
 
-**Note**: The pipeline expects Analyze format (`.hdr`/`.img` files). The first 6 volumes of fMRI data are automatically removed (configurable in `config/pipeline_config.yaml`).
+**Important Notes**:
+- The pipeline automatically detects and handles both formats
+- For **3D series**: Files are sorted by volume number (e.g., `_0007`, `_0008`) and concatenated into 4D
+- The **first 6 volumes** are automatically removed (configurable: `fmri_start_volume: 7` in `config/pipeline_config.yaml`)
+- Files must be in **Analyze format** (`.hdr`/`.img` pairs)
 
 ## Usage
 
