@@ -38,6 +38,7 @@ class SliceTimingCorrection:
         self.config = config
         self.st_params = config['preprocessing']['slice_timing']
         self.tr = config['data']['tr']
+        self._last_tpattern = None
 
     def run_3dTshift(self, input_img: str, output_img: str) -> str:
         """
@@ -64,14 +65,26 @@ class SliceTimingCorrection:
             '-TR', str(self.tr),
         ]
 
-        # Slice order
-        slice_order = self.st_params.get('slice_order', 'interleaved')
-        if slice_order == 'interleaved':
-            cmd.append('-altplus')  # Odd slices first (1,3,5..., then 2,4,6...)
-        elif slice_order == 'sequential_ascending':
-            cmd.append('-sequential')
-        elif slice_order == 'sequential_descending':
-            cmd.append('-seqminus')
+        # Determine slice timing pattern for AFNI
+        tpattern = self.st_params.get('tpattern')
+        if not tpattern:
+            slice_order = self.st_params.get('slice_order', 'interleaved')
+            slice_map = {
+                'interleaved': 'alt+z',
+                'interleaved_descending': 'alt-z',
+                'sequential_ascending': 'seq+z',
+                'sequential_descending': 'seq-z',
+            }
+            tpattern = slice_map.get(slice_order)
+            if not tpattern:
+                logger.warning(
+                    f"Unknown slice_order '{slice_order}', defaulting to AFNI automatic pattern."
+                )
+
+        if tpattern:
+            cmd.extend(['-tpattern', tpattern])
+
+        self._last_tpattern = tpattern
 
         cmd.append(input_img)
 
@@ -107,6 +120,7 @@ class SliceTimingCorrection:
             Output image path
         """
         logger.info("Running nilearn slice timing correction...")
+        self._last_tpattern = None
 
         from nilearn.image import index_img
         from scipy.interpolate import interp1d
@@ -213,6 +227,8 @@ class SliceTimingCorrection:
             'output_image': str(output_img),
             'tr': self.tr,
             'slice_order': self.st_params.get('slice_order', 'interleaved'),
+            'afni_tpattern': self._last_tpattern,
+            'status': 'completed',
         }
 
         metadata_file = output_dir / f'{subject_id}_slice_timing_metadata.json'

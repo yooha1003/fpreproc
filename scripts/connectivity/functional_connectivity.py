@@ -90,11 +90,26 @@ class FunctionalConnectivity:
         numpy.ndarray
             Connectivity matrix (n_rois x n_rois)
         """
-        logger.info(f"Computing connectivity matrix ({method})...")
+        normalized_method = method.replace('_', ' ').strip().lower()
+        allowed_methods = ('correlation', 'partial correlation',
+                           'tangent', 'covariance', 'precision')
+
+        if normalized_method not in allowed_methods:
+            raise ValueError(
+                f"Unsupported connectivity method '{method}'. "
+                f"Allowed values: {allowed_methods}"
+            )
+
+        if normalized_method != method:
+            logger.info(
+                f"Computing connectivity matrix ({method} → {normalized_method})..."
+            )
+        else:
+            logger.info(f"Computing connectivity matrix ({method})...")
 
         from nilearn.connectome import ConnectivityMeasure
 
-        conn_measure = ConnectivityMeasure(kind=method)
+        conn_measure = ConnectivityMeasure(kind=normalized_method)
         conn_matrix = conn_measure.fit_transform([time_series])[0]
 
         logger.info(f"Connectivity matrix shape: {conn_matrix.shape}")

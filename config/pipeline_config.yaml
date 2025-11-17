@@ -19,6 +19,7 @@ preprocessing:
     enable: true
     slice_order: "interleaved"  # or "sequential_ascending", "sequential_descending"
     ref_slice: "middle"
+    tpattern: null  # Optional AFNI 3dTshift -tpattern (e.g., "alt+z"); overrides slice_order mapping
 
   # Spatial smoothing
   smoothing:
@@ -48,6 +49,7 @@ preprocessing:
 registration:
   # Functional to anatomical
   func_to_anat:
+    method: "ants"  # "ants" for SyN-based registration, "flirt" for rigid/affine
     cost_function: "bbr"  # Boundary-Based Registration
     dof: 6  # Degrees of freedom
 

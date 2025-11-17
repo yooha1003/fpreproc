@@ -109,13 +109,15 @@ class Coregistration:
 
         output_prefix = str(Path(output).with_suffix(''))
 
+        transform = self.coreg_params.get('ants_transform', 's')
+
         cmd = [
             'antsRegistrationSyN.sh',
             '-d', '3',
             '-f', fixed,
             '-m', moving,
             '-o', output_prefix,
-            '-t', 'r',  # Rigid registration
+            '-t', transform,  # SyN by default ('s')
         ]
 
         logger.info(f"Command: {' '.join(cmd)}")
@@ -245,21 +247,46 @@ class Coregistration:
         registered_mean = output_dir / f'{subject_id}_mean_func_coreg.nii.gz'
         transform_matrix = output_dir / f'{subject_id}_func2anat.mat'
 
-        try:
-            registered_mean, transform_matrix = self.run_flirt(
+        preferred_method = self.coreg_params.get('method', 'flirt').lower()
+
+        def _run_flirt():
+            return self.run_flirt(
                 str(mean_func), anat_img, str(registered_mean), str(transform_matrix)
             )
-        except:
-            logger.warning("FLIRT failed, trying ANTs...")
-            try:
-                registered_mean, transform_matrix = self.run_ants(
-                    str(mean_func), anat_img, str(registered_mean), str(transform_matrix)
-                )
-            except:
-                logger.warning("ANTs failed, using nilearn fallback...")
-                registered_mean, transform_matrix = self.run_nilearn_coreg(
-                    str(mean_func), anat_img, str(registered_mean)
-                )
+
+        def _run_ants():
+            return self.run_ants(
+                str(mean_func), anat_img, str(registered_mean), str(transform_matrix)
+            )
+
+        try:
+            if preferred_method == 'ants':
+                logger.info("Coregistration method set to ANTs SyN.")
+                registered_mean, transform_matrix = _run_ants()
+            else:
+                if preferred_method != 'flirt':
+                    logger.warning(f"Unknown method '{preferred_method}', defaulting to FLIRT.")
+                logger.info("Coregistration method set to FLIRT.")
+                registered_mean, transform_matrix = _run_flirt()
+        except Exception:
+            if preferred_method == 'ants':
+                logger.warning("ANTs failed, falling back to FLIRT...")
+                try:
+                    registered_mean, transform_matrix = _run_flirt()
+                except Exception:
+                    logger.warning("FLIRT fallback failed, using nilearn resampling...")
+                    registered_mean, transform_matrix = self.run_nilearn_coreg(
+                        str(mean_func), anat_img, str(registered_mean)
+                    )
+            else:
+                logger.warning("FLIRT failed, trying ANTs...")
+                try:
+                    registered_mean, transform_matrix = _run_ants()
+                except Exception:
+                    logger.warning("ANTs fallback failed, using nilearn resampling...")
+                    registered_mean, transform_matrix = self.run_nilearn_coreg(
+                        str(mean_func), anat_img, str(registered_mean)
+                    )
 
         # Create QC overlay
         qc_dir = output_dir / 'qc'

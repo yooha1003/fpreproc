@@ -218,10 +218,21 @@ def get_standard_template(template_name: str = 'MNI152_T1_2mm_brain') -> Optiona
     pathlib.Path or None
         Template file path
     """
+    template_candidate = Path(template_name)
+    if template_candidate.exists():
+        return template_candidate
+
     fsldir = get_fsldir()
 
+    if template_candidate.suffix == '.gz':
+        template_key = template_candidate.with_suffix('').name
+        if template_key.endswith('.nii'):
+            template_key = Path(template_key).with_suffix('').name
+    else:
+        template_key = template_candidate.stem
+
     if fsldir:
-        template_path = fsldir / 'data' / 'standard' / f'{template_name}.nii.gz'
+        template_path = fsldir / 'data' / 'standard' / f'{template_key}.nii.gz'
         if template_path.exists():
             return template_path
 
