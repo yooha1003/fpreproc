@@ -6,8 +6,8 @@ A comprehensive, modular pipeline for preprocessing resting-state fMRI data and 
 
 ### Preprocessing
 - **Motion Correction**: FSL MCFLIRT / AFNI 3dvolreg
-- **Slice Timing Correction**: AFNI 3dTshift
-- **Spatial Registration**: Functional to anatomical (FLIRT/ANTs)
+- **Slice Timing Correction**: AFNI 3dTshift with explicit `-tpattern` support
+- **Spatial Registration**: Functional to anatomical (FLIRT, ANTs SyN)
 - **Normalization**: MNI standard space (FNIRT/ANTs SyN)
 - **Spatial Smoothing**: Gaussian smoothing (FSL/AFNI)
 
@@ -43,6 +43,7 @@ A comprehensive, modular pipeline for preprocessing resting-state fMRI data and 
 - **Single Subject**: Process one subject end-to-end
 - **Batch Processing**: Parallel or sequential processing of multiple subjects
 - **Modular Design**: Skip or customize any pipeline step
+- **Python API**: Importable wrappers for each preprocessing stage (`scripts/preprocessing/*.py`)
 
 ## Directory Structure
 
@@ -179,41 +180,82 @@ data/raw/
 
 ## Usage
 
-### Quick Start: Single Subject
+### Quick Start Examples
 
-Process one subject through the entire pipeline:
+#### Single Subject (CLI)
+
+Process one subject end-to-end with the default config:
 
 ```bash
 python pipelines/single_subject.py sub-001 data/raw results
 ```
 
-### Batch Processing
+With custom configuration and selective steps:
 
-Process all subjects in parallel:
+```bash
+python pipelines/single_subject.py \
+    sub-001 data/raw results \
+    --config config/pipeline_config.yaml \
+    --skip smoothing
+```
+
+#### Multiple Subjects (CLI)
+
+Process every subject found under `data/raw` in parallel:
 
 ```bash
 python pipelines/batch_processing.py data/raw results
 ```
 
-Process specific subjects:
+Only process specific IDs with limited workers:
 
 ```bash
-python pipelines/batch_processing.py data/raw results --subjects sub-001 sub-002 sub-003
+python pipelines/batch_processing.py \
+    data/raw results \
+    --subjects sub-001 sub-002 sub-010 \
+    --n-jobs 4
 ```
 
-Process sequentially (not in parallel):
+Sequential (one-at-a-time) processing to reduce memory pressure:
 
 ```bash
 python pipelines/batch_processing.py data/raw results --sequential
 ```
 
-Limit parallel jobs:
+### Programmatic Usage (Python API)
 
-```bash
-python pipelines/batch_processing.py data/raw results --n-jobs 4
+Each preprocessing script now exposes its main class through an import-friendly wrapper. This enables notebooks or custom workflows to re-use the exact implementations without invoking subprocesses.
+
+```python
+from scripts.preprocessing.slice_timing import SliceTimingCorrection
+from scripts.preprocessing.coregistration import Coregistration
+from scripts.preprocessing.motion_correction import MotionCorrection
+from scripts.utils.helpers import load_config
+
+config = load_config("config/pipeline_config.yaml")
+motion = MotionCorrection(config)
+stc = SliceTimingCorrection(config)
+coreg = Coregistration(config)
+
+mc_out = motion.run(
+    subject_id="sub-001",
+    func_img="data/raw/sub-001/func/rest.nii.gz",
+    output_dir="results/preprocessing/sub-001",
+)
+
+st_out = stc.run_3dTshift(mc_out, "results/preprocessing/sub-001/sub-001_stc.nii.gz")
+
+coreg.run(
+    subject_id="sub-001",
+    func_img=st_out,
+    anat_img="data/raw/sub-001/anat/T1.nii.gz",
+    output_dir="results/preprocessing/sub-001",
+)
 ```
 
-### Custom Pipeline
+Wrappers are also available for normalization (`SpatialNormalization`) and smoothing (`SpatialSmoothing`), keeping the import path consistent with the CLI modules.
+
+### Custom Pipeline (CLI)
 
 Skip specific steps:
 
@@ -279,6 +321,7 @@ preprocessing:
   slice_timing:
     enable: true
     slice_order: "interleaved"
+    tpattern: null  # Optional AFNI pattern (e.g., "alt+z"); overrides slice_order mapping
 
   smoothing:
     fwhm: 6  # Full-width half-maximum (mm)
@@ -286,6 +329,13 @@ preprocessing:
   temporal_filtering:
     highpass: 0.01  # Hz
     lowpass: 0.1    # Hz
+
+registration:
+  func_to_anat:
+    method: "ants"        # "ants" (SyN) or "flirt"
+    ants_transform: "s"   # Passed to antsRegistrationSyN.sh (-t)
+    cost_function: "bbr"
+    dof: 6
 ```
 
 ### Atlases
@@ -311,6 +361,8 @@ connectivity:
       - "partial_correlation"
       - "tangent"
     threshold: 0.3
+    # Valid values (case-insensitive): correlation, partial correlation,
+    # tangent, covariance, precision
 
   ica:
     n_components: 20
