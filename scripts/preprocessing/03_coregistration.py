@@ -107,7 +107,15 @@ class Coregistration:
         """
         logger.info("Running ANTs registration...")
 
-        output_prefix = str(Path(output).with_suffix(''))
+        output_path = Path(output)
+
+        def _strip_nii_gz(path: Path) -> Path:
+            """Remove .nii/.nii.gz suffixes for ANTs output prefix."""
+            if path.name.endswith('.nii.gz'):
+                return path.with_suffix('').with_suffix('')
+            return path.with_suffix('')
+
+        output_prefix = str(_strip_nii_gz(output_path))
 
         transform = self.coreg_params.get('ants_transform', 's')
 
@@ -123,17 +131,28 @@ class Coregistration:
         logger.info(f"Command: {' '.join(cmd)}")
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             # Rename outputs
             ants_output = f'{output_prefix}Warped.nii.gz'
             ants_matrix = f'{output_prefix}0GenericAffine.mat'
 
-            if Path(ants_output).exists():
-                Path(ants_output).rename(output)
+            ants_output_path = Path(ants_output)
+            ants_matrix_path = Path(ants_matrix)
 
-            if Path(ants_matrix).exists():
-                Path(ants_matrix).rename(output_matrix)
+            if not ants_output_path.exists():
+                logger.error("ANTs coregistration did not create %s", ants_output)
+                logger.debug("ANTs stdout:\n%s", result.stdout)
+                logger.debug("ANTs stderr:\n%s", result.stderr)
+                raise RuntimeError(f"ANTs output missing: {ants_output}")
+
+            ants_output_path.rename(output)
+
+            if ants_matrix_path.exists():
+                ants_matrix_path.rename(output_matrix)
+            else:
+                logger.error("ANTs coregistration missing affine matrix %s", ants_matrix)
+                raise RuntimeError(f"ANTs matrix missing: {ants_matrix}")
 
             logger.info("ANTs registration completed successfully")
             return output, output_matrix
