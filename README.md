@@ -332,10 +332,40 @@ preprocessing:
 
 registration:
   func_to_anat:
-    method: "ants"        # "ants" (SyN) or "flirt"
-    ants_transform: "s"   # Passed to antsRegistrationSyN.sh (-t)
+    method: "ants"        # "ants" for SyN, "flirt" for rigid/affine
     cost_function: "bbr"
     dof: 6
+
+  anat_to_standard:
+    method: "ants"        # "ants" or "fnirt"
+    template: "MNI152_T1_2mm_brain.nii.gz"
+    dof: 12
+    nonlinear: true
+    ants:
+      winsorize: [0.005, 0.995]
+      histogram_matching: true
+      interpolation: "Linear"
+      apply_interpolation: "Linear"
+      default_value: 0
+      stages:
+        - name: "rigid"
+          transform: "Rigid[0.1]"
+          metric: "MI[{fixed},{moving},0.7,32,Regular,0.25]"
+          convergence: "[1000x500x250x100,1e-6,10]"
+          shrink_factors: "8x4x2x1"
+          smoothing_sigmas: "3x2x1x0vox"
+        - name: "affine"
+          transform: "Affine[0.1]"
+          metric: "MI[{fixed},{moving},0.7,32,Regular,0.25]"
+          convergence: "[1000x500x250x100,1e-6,10]"
+          shrink_factors: "8x4x2x1"
+          smoothing_sigmas: "3x2x1x0vox"
+        - name: "syn"
+          transform: "SyN[0.1,3,0]"
+          metric: "CC[{fixed},{moving},1,4]"
+          convergence: "[100x70x50x20,1e-6,10]"
+          shrink_factors: "8x4x2x1"
+          smoothing_sigmas: "3x2x1x0vox"
 ```
 
 ### Atlases
@@ -359,7 +389,7 @@ connectivity:
     methods:
       - "correlation"
       - "partial_correlation"
-      - "tangent"
+      - "tangent"          # requires multiple subjects to estimate a group mean
     threshold: 0.3
     # Valid values (case-insensitive): correlation, partial correlation,
     # tangent, covariance, precision
