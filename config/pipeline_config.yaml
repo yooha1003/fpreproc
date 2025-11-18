@@ -51,7 +51,7 @@ registration:
   func_to_anat:
     method: "ants"  # "ants" for SyN-based registration, "flirt" for rigid/affine
     cost_function: "bbr"  # Boundary-Based Registration
-    dof: 6  # Degrees of freedom
+    dof: 9  # Degrees of freedom
 
   # Anatomical to standard space
   anat_to_standard:

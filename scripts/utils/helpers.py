@@ -4,6 +4,7 @@ Helper utilities for the fMRI preprocessing pipeline.
 """
 
 import os
+import shutil
 import yaml
 import json
 import logging
@@ -11,7 +12,7 @@ import nibabel as nib
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 import matplotlib.pyplot as plt
 
 
@@ -195,13 +196,52 @@ def get_fsldir() -> Optional[Path]:
     pathlib.Path or None
         FSL directory path
     """
-    fsldir = os.environ.get('FSLDIR')
+    candidates: List[Path] = []
 
-    if fsldir and Path(fsldir).exists():
-        return Path(fsldir)
-    else:
-        logging.warning("FSLDIR not set or directory not found")
-        return None
+    def add_candidate(path: Union[str, Path, None]) -> None:
+        if not path:
+            return
+        path_obj = Path(path).expanduser()
+        if path_obj not in candidates:
+            candidates.append(path_obj)
+
+    fsldir_env = os.environ.get('FSLDIR')
+    if fsldir_env:
+        add_candidate(fsldir_env)
+
+    # If the fsl command is available, walk its parent directories to locate FSLDIR
+    fsl_cmd = shutil.which('fsl')
+    if fsl_cmd:
+        fsl_path = Path(fsl_cmd).resolve()
+        for parent in fsl_path.parents:
+            if (parent / 'etc' / 'fslconf' / 'fsl.sh').exists():
+                add_candidate(parent)
+                break
+
+    # Common installation locations so the pipeline works when FSLDIR is unset
+    add_candidate(Path.home() / 'fsl')
+    add_candidate('/usr/local/fsl')
+    add_candidate('/opt/fsl')
+
+    # Check other home directories (useful when running as root but FSL lives in a user account)
+    home_root = Path('/home')
+    if home_root.exists():
+        for user_dir in home_root.iterdir():
+            candidate = user_dir / 'fsl'
+            if candidate.exists():
+                add_candidate(candidate)
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if (candidate / 'etc' / 'fslconf' / 'fsl.sh').exists():
+            return candidate
+
+    logging.warning(
+        "FSLDIR not set or directory not found. "
+        f"Tried: {', '.join(str(p) for p in candidates)}"
+    )
+    return None
 
 
 def get_standard_template(template_name: str = 'MNI152_T1_2mm_brain') -> Optional[Path]:
