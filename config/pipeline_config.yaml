@@ -55,6 +55,7 @@ registration:
 
   # Anatomical to standard space
   anat_to_standard:
+    method: "ants"  # Choose "ants" (SyN) or "fnirt"
     template: "MNI152_T1_2mm_brain.nii.gz"
     cost_function: "corratio"
     dof: 12

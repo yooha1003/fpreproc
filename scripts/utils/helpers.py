@@ -324,6 +324,23 @@ def save_nifti(data: np.ndarray,
     logging.info(f"Saved: {output_path}")
 
 
+def _rescale_for_display(img: nib.Nifti1Image,
+                         lower: float = 2.0,
+                         upper: float = 98.0) -> nib.Nifti1Image:
+    """Rescale image intensities to the given percentile window for visualization."""
+    data = img.get_fdata()
+    finite_data = data[np.isfinite(data)]
+    if finite_data.size == 0:
+        return img
+
+    lo, hi = np.percentile(finite_data, [lower, upper])
+    if hi <= lo:
+        return img
+
+    scaled = np.clip((data - lo) / (hi - lo), 0, 1)
+    return nib.Nifti1Image(scaled, img.affine)
+
+
 def plot_registration_overlay(fixed: nib.Nifti1Image,
                               moving: nib.Nifti1Image,
                               output_path: str,
@@ -347,8 +364,17 @@ def plot_registration_overlay(fixed: nib.Nifti1Image,
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create overlay plot
-    display = plotting.plot_anat(fixed, title=title, display_mode='ortho')
+    # Normalize intensities so gray-matter detail remains visible on bright background
+    fixed_display = _rescale_for_display(fixed)
+
+    display = plotting.plot_anat(
+        fixed_display,
+        title=title,
+        display_mode='ortho',
+        cmap='gray',
+        black_bg=False,
+        dim=0.0
+    )
     display.add_edges(moving, color='r')
 
     # Save

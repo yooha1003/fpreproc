@@ -9,7 +9,8 @@ import nibabel as nib
 from pathlib import Path
 import subprocess
 import logging
-from typing import Optional, Tuple
+import shutil
+from typing import Optional, Tuple, Union, Dict, Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -30,6 +31,7 @@ class SpatialNormalization:
 
         self.config = config
         self.norm_params = config['registration']['anat_to_standard']
+        self.method = self.norm_params.get('method', 'fnirt').lower()
 
     def run_fnirt(self, anat: str, template: str, output: str,
                   warp_field: str) -> Tuple[str, str]:
@@ -118,7 +120,7 @@ class SpatialNormalization:
 
             return output, affine_matrix
 
-    def run_ants_syn(self, moving: str, fixed: str, output: str) -> Tuple[str, str]:
+    def run_ants_syn(self, moving: str, fixed: str, output: str) -> Tuple[str, Dict[str, str]]:
         """
         Run ANTs SyN for nonlinear registration.
 
@@ -156,20 +158,27 @@ class SpatialNormalization:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             # Rename outputs
-            ants_output = f'{output_prefix}Warped.nii.gz'
-            ants_warp = f'{output_prefix}1Warp.nii.gz'
+            ants_output = Path(f'{output_prefix}Warped.nii.gz')
+            ants_warp = Path(f'{output_prefix}1Warp.nii.gz')
+            ants_affine = Path(f'{output_prefix}0GenericAffine.mat')
 
-            if Path(ants_output).exists():
-                Path(ants_output).rename(output)
+            if ants_output.exists():
+                shutil.move(str(ants_output), output)
 
-            if Path(ants_warp).exists():
-                warp_field = str(Path(output).parent / f'{Path(output).stem}_warp.nii.gz')
-                Path(ants_warp).rename(warp_field)
-            else:
-                warp_field = f'{output_prefix}0GenericAffine.mat'
+            transforms = {'type': 'ants'}
+
+            if ants_warp.exists():
+                warp_field = Path(output).parent / f'{Path(output).stem}_antsWarp.nii.gz'
+                shutil.move(str(ants_warp), warp_field)
+                transforms['warp'] = str(warp_field)
+
+            if ants_affine.exists():
+                affine_file = Path(output).parent / f'{Path(output).stem}_antsAffine.mat'
+                shutil.move(str(ants_affine), affine_file)
+                transforms['affine'] = str(affine_file)
 
             logger.info("ANTs SyN completed successfully")
-            return output, warp_field
+            return output, transforms
 
         except FileNotFoundError:
             logger.warning("ANTs not found, using nilearn fallback")
@@ -219,8 +228,9 @@ class SpatialNormalization:
 
         return output, matrix_file
 
-    def apply_normalization_to_functional(self, func_img: str, warp_field: str,
-                                         template: str, output: str) -> str:
+    def apply_normalization_to_functional(self, func_img: str,
+                                          transform: Union[str, Dict[str, Any]],
+                                          template: str, output: str) -> str:
         """
         Apply normalization transformation to functional data.
 
@@ -242,10 +252,44 @@ class SpatialNormalization:
         """
         logger.info("Applying normalization to functional data...")
 
-        # Check if warp is a matrix or warp field
-        is_matrix = warp_field.endswith('.mat')
+        # Handle ANTs transforms explicitly
+        if isinstance(transform, dict) and transform.get('type') == 'ants':
+            warp = transform.get('warp')
+            affine = transform.get('affine')
+            cmd = [
+                'antsApplyTransforms',
+                '-d', '3',
+                '-i', func_img,
+                '-r', template,
+                '-o', output,
+            ]
 
-        if is_matrix:
+            # Order matters: warp first, then affine
+            if warp:
+                cmd.extend(['-t', warp])
+            if affine:
+                cmd.extend(['-t', affine])
+
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                logger.info("Applied ANTs transforms to functional data")
+                return output
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                logger.warning("ANTs apply failed, falling back to nilearn resampling")
+                from nilearn.image import resample_to_img
+
+                func = nib.load(func_img)
+                template_img = nib.load(template)
+                normalized = resample_to_img(func, template_img)
+                nib.save(normalized, output)
+                return output
+
+        warp_field = transform
+
+        # Check if warp is a matrix or warp field
+        is_matrix = isinstance(warp_field, str) and warp_field.endswith('.mat')
+
+        if is_matrix and isinstance(warp_field, str):
             # Use FLIRT to apply affine transformation
             try:
                 cmd = [
@@ -264,7 +308,7 @@ class SpatialNormalization:
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
 
-        else:
+        elif isinstance(warp_field, str):
             # Use FNIRT/applywarp for nonlinear transformation
             try:
                 cmd = [
@@ -282,33 +326,36 @@ class SpatialNormalization:
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
 
-        # Fallback: use ANTs
-        try:
-            cmd = [
-                'antsApplyTransforms',
-                '-d', '3',
-                '-i', func_img,
-                '-r', template,
-                '-t', warp_field,
-                '-o', output,
-            ]
+        # Fallback: use ANTs if available (single transform or dict already handled)
+        if isinstance(warp_field, str):
+            try:
+                cmd = [
+                    'antsApplyTransforms',
+                    '-d', '3',
+                    '-i', func_img,
+                    '-r', template,
+                    '-t', warp_field,
+                    '-o', output,
+                ]
 
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-            logger.info("Applied transformation using ANTs")
-            return output
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                logger.info("Applied transformation using ANTs")
+                return output
 
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            # Final fallback: simple resampling
-            logger.warning("Using nilearn resampling fallback")
-            from nilearn.image import resample_to_img
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                pass
 
-            func = nib.load(func_img)
-            template_img = nib.load(template)
+        # Final fallback: simple resampling
+        logger.warning("Using nilearn resampling fallback")
+        from nilearn.image import resample_to_img
 
-            normalized = resample_to_img(func, template_img)
-            nib.save(normalized, output)
+        func = nib.load(func_img)
+        template_img = nib.load(template)
 
-            return output
+        normalized = resample_to_img(func, template_img)
+        nib.save(normalized, output)
+
+        return output
 
     def run(self, anat_img: str, func_img: str, output_dir: str,
             subject_id: str) -> dict:
@@ -348,20 +395,37 @@ class SpatialNormalization:
         warp_field = output_dir / f'{subject_id}_anat2mni_warp.nii.gz'
 
         try:
-            normalized_anat, warp_field = self.run_fnirt(
-                anat_img, str(template), str(normalized_anat), str(warp_field)
-            )
-        except:
-            logger.warning("FNIRT failed, trying ANTs...")
-            try:
+            if self.method == 'ants':
                 normalized_anat, warp_field = self.run_ants_syn(
                     anat_img, str(template), str(normalized_anat)
                 )
-            except:
-                logger.warning("ANTs failed, using nilearn fallback...")
-                normalized_anat, warp_field = self.run_nilearn_normalize(
-                    anat_img, str(template), str(normalized_anat)
+            else:
+                normalized_anat, warp_field = self.run_fnirt(
+                    anat_img, str(template), str(normalized_anat), str(warp_field)
                 )
+        except Exception:
+            if self.method == 'ants':
+                logger.warning("ANTs failed, falling back to FNIRT...")
+                try:
+                    normalized_anat, warp_field = self.run_fnirt(
+                        anat_img, str(template), str(normalized_anat), str(warp_field)
+                    )
+                except Exception:
+                    logger.warning("FNIRT fallback failed, using nilearn...")
+                    normalized_anat, warp_field = self.run_nilearn_normalize(
+                        anat_img, str(template), str(normalized_anat)
+                    )
+            else:
+                logger.warning("FNIRT failed, trying ANTs...")
+                try:
+                    normalized_anat, warp_field = self.run_ants_syn(
+                        anat_img, str(template), str(normalized_anat)
+                    )
+                except Exception:
+                    logger.warning("ANTs failed, using nilearn fallback...")
+                    normalized_anat, warp_field = self.run_nilearn_normalize(
+                        anat_img, str(template), str(normalized_anat)
+                    )
 
         # Apply to functional data
         normalized_func = output_dir / f'{subject_id}_func_mni.nii.gz'
@@ -389,7 +453,7 @@ class SpatialNormalization:
             'template': str(template),
             'normalized_anatomical': str(normalized_anat),
             'normalized_functional': str(normalized_func),
-            'warp_field': str(warp_field),
+            'warp_field': warp_field,
             'qc_plot': str(qc_anat),
         }
 
