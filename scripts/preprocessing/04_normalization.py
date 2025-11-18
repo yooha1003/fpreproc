@@ -32,6 +32,7 @@ class SpatialNormalization:
         self.config = config
         self.norm_params = config['registration']['anat_to_standard']
         self.method = self.norm_params.get('method', 'fnirt').lower()
+        self.ants_params = self.norm_params.get('ants', {})
 
     def run_fnirt(self, anat: str, template: str, output: str,
                   warp_field: str) -> Tuple[str, str]:
@@ -103,7 +104,7 @@ class SpatialNormalization:
 
             except FileNotFoundError:
                 logger.warning("FNIRT not found, falling back to ANTs")
-                return self.run_ants_syn(anat, template, output)
+                return self.run_ants_registration(anat, template, output)
 
         else:
             # Apply affine only
@@ -120,73 +121,169 @@ class SpatialNormalization:
 
             return output, affine_matrix
 
-    def run_ants_syn(self, moving: str, fixed: str, output: str) -> Tuple[str, Dict[str, str]]:
+    def run_ants_registration(self, moving: str, fixed: str,
+                              output: str) -> Tuple[str, Dict[str, str]]:
         """
-        Run ANTs SyN for nonlinear registration.
+        Run ANTs registration using a rigid+affine+SyN workflow.
 
         Parameters
         ----------
         moving : str
-            Moving image (anatomical)
+            Moving image (subject anatomical)
         fixed : str
-            Fixed image (template)
+            Fixed reference (MNI template)
         output : str
-            Output normalized image
+            Output normalized anatomical image
 
         Returns
         -------
-        output : str
-            Normalized image path
-        warp_field : str
-            Warp field path
+        Tuple[str, Dict[str, str]]
+            Normalized image path and dictionary describing transforms.
         """
-        logger.info("Running ANTs SyN (nonlinear registration)...")
+        logger.info("Running customized ANTs registration (Rigid+Affine+SyN)...")
 
-        output_prefix = str(Path(output).with_suffix(''))
+        def build_prefix(path: str) -> Path:
+            path_obj = Path(path)
+            name = path_obj.name
+            if name.endswith('.nii.gz'):
+                name = name[:-7]
+            else:
+                name = path_obj.stem
+            return path_obj.with_name(name)
 
-        cmd = [
-            'antsRegistrationSyN.sh',
-            '-d', '3',
-            '-f', fixed,
-            '-m', moving,
-            '-o', output_prefix,
+        output_prefix_path = build_prefix(output)
+        output_prefix = str(output_prefix_path)
+
+        winsorize = self.ants_params.get('winsorize', [0.005, 0.995])
+        hist_match = '1' if self.ants_params.get('histogram_matching', True) else '0'
+        interpolation = self.ants_params.get('interpolation', 'Linear')
+        dimensionality = str(self.ants_params.get('dimensionality', 3))
+        float_precision = '1' if self.ants_params.get('float', False) else '0'
+
+        default_stages = [
+            {
+                'transform': 'Rigid[0.1]',
+                'metric': 'MI[{fixed},{moving},0.7,32,Regular,0.25]',
+                'convergence': '[1000x500x250x100,1e-6,10]',
+                'shrink_factors': '8x4x2x1',
+                'smoothing_sigmas': '3x2x1x0vox'
+            },
+            {
+                'transform': 'Affine[0.1]',
+                'metric': 'MI[{fixed},{moving},0.7,32,Regular,0.25]',
+                'convergence': '[1000x500x250x100,1e-6,10]',
+                'shrink_factors': '8x4x2x1',
+                'smoothing_sigmas': '3x2x1x0vox'
+            },
+            {
+                'transform': 'SyN[0.1,3,0]',
+                'metric': 'CC[{fixed},{moving},1,4]',
+                'convergence': '[100x70x50x20,1e-6,10]',
+                'shrink_factors': '8x4x2x1',
+                'smoothing_sigmas': '3x2x1x0vox'
+            }
         ]
 
-        logger.info(f"Command: {' '.join(cmd)}")
+        stages = self.ants_params.get('stages', default_stages)
+
+        cmd = [
+            'antsRegistration',
+            '--dimensionality', dimensionality,
+            '--float', float_precision,
+            '--output', output_prefix,
+            '--interpolation', interpolation,
+            '--winsorize-image-intensities',
+            f'[{winsorize[0]},{winsorize[1]}]',
+            '--use-histogram-matching', hist_match,
+            '--initial-moving-transform',
+            f'[{fixed},{moving},1]'
+        ]
+
+        def replace_placeholders(value: str) -> str:
+            return value.replace('{fixed}', fixed).replace('{moving}', moving)
+
+        for stage in stages:
+            transform = stage.get('transform')
+            if not transform:
+                continue
+            cmd.extend(['--transform', transform])
+
+            metric = stage.get('metric')
+            if metric:
+                cmd.extend(['--metric', replace_placeholders(metric)])
+
+            convergence = stage.get('convergence')
+            if convergence:
+                cmd.extend(['--convergence', convergence])
+
+            shrink = stage.get('shrink_factors')
+            if shrink:
+                cmd.extend(['--shrink-factors', shrink])
+
+            sigmas = stage.get('smoothing_sigmas')
+            if sigmas:
+                cmd.extend(['--smoothing-sigmas', sigmas])
+
+        if self.ants_params.get('verbose', True):
+            cmd.append('-v')
+
+        logger.info(f"ANTs command: {' '.join(cmd)}")
 
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
-
-            # Rename outputs
-            ants_output = Path(f'{output_prefix}Warped.nii.gz')
-            ants_warp = Path(f'{output_prefix}1Warp.nii.gz')
-            ants_affine = Path(f'{output_prefix}0GenericAffine.mat')
-
-            if ants_output.exists():
-                shutil.move(str(ants_output), output)
-
-            transforms = {'type': 'ants'}
-
-            if ants_warp.exists():
-                warp_field = Path(output).parent / f'{Path(output).stem}_antsWarp.nii.gz'
-                shutil.move(str(ants_warp), warp_field)
-                transforms['warp'] = str(warp_field)
-
-            if ants_affine.exists():
-                affine_file = Path(output).parent / f'{Path(output).stem}_antsAffine.mat'
-                shutil.move(str(ants_affine), affine_file)
-                transforms['affine'] = str(affine_file)
-
-            logger.info("ANTs SyN completed successfully")
-            return output, transforms
-
         except FileNotFoundError:
             logger.warning("ANTs not found, using nilearn fallback")
             return self.run_nilearn_normalize(moving, fixed, output)
-
         except subprocess.CalledProcessError as e:
             logger.error(f"ANTs failed: {e.stderr}")
             raise
+
+        # Expected ANTs outputs based on prefix
+        ants_warp = Path(f'{output_prefix}1Warp.nii.gz')
+        ants_affine = Path(f'{output_prefix}0GenericAffine.mat')
+
+        # Apply transforms to anatomical image to create final normalized volume
+        apply_cmd = [
+            'antsApplyTransforms',
+            '-d', dimensionality,
+            '-i', moving,
+            '-r', fixed,
+            '-o', output,
+            '-n', self.ants_params.get('apply_interpolation', interpolation),
+            '--default-value', str(self.ants_params.get('default_value', 0))
+        ]
+
+        # Apply warp then affine (last transform listed is applied first)
+        if ants_warp.exists():
+            apply_cmd.extend(['-t', str(ants_warp)])
+        if ants_affine.exists():
+            apply_cmd.extend(['-t', str(ants_affine)])
+
+        logger.info(f"Applying ANTs transforms: {' '.join(apply_cmd)}")
+        try:
+            subprocess.run(apply_cmd, check=True, capture_output=True, text=True)
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            logger.error(f"antsApplyTransforms failed: {getattr(e, 'stderr', e)}")
+            raise
+
+        transforms = {'type': 'ants'}
+        if ants_warp.exists():
+            warp_field = Path(output).parent / f'{Path(output).stem}_antsWarp.nii.gz'
+            shutil.move(str(ants_warp), warp_field)
+            transforms['warp'] = str(warp_field)
+
+        if ants_affine.exists():
+            affine_file = Path(output).parent / f'{Path(output).stem}_antsAffine.mat'
+            shutil.move(str(ants_affine), affine_file)
+            transforms['affine'] = str(affine_file)
+
+        # Remove intermediate warped output if it exists (antsRegistration creates prefixWarped.nii.gz)
+        warped_tmp = Path(f'{output_prefix}Warped.nii.gz')
+        if warped_tmp.exists():
+            warped_tmp.unlink()
+
+        logger.info("ANTs registration completed successfully")
+        return output, transforms
 
     def run_nilearn_normalize(self, moving: str, fixed: str, output: str) -> Tuple[str, str]:
         """
@@ -396,7 +493,7 @@ class SpatialNormalization:
 
         try:
             if self.method == 'ants':
-                normalized_anat, warp_field = self.run_ants_syn(
+                normalized_anat, warp_field = self.run_ants_registration(
                     anat_img, str(template), str(normalized_anat)
                 )
             else:
@@ -418,7 +515,7 @@ class SpatialNormalization:
             else:
                 logger.warning("FNIRT failed, trying ANTs...")
                 try:
-                    normalized_anat, warp_field = self.run_ants_syn(
+                    normalized_anat, warp_field = self.run_ants_registration(
                         anat_img, str(template), str(normalized_anat)
                     )
                 except Exception:
