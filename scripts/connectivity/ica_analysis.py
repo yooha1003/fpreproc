@@ -61,7 +61,6 @@ class ICAAnalysis:
         # Create CanICA object
         canica = CanICA(
             n_components=n_components,
-            algorithm=self.ica_params.get('algorithm', 'fastica'),
             random_state=0,
             memory="nilearn_cache",
             memory_level=2,

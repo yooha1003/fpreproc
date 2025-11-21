@@ -101,7 +101,7 @@ class GlassBrainNetworkViz:
         colormap = self.viz_params.get('colormap', 'jet')
 
         # Plot connectome
-        fig = plotting.plot_connectome(
+        display = plotting.plot_connectome(
             conn_matrix,
             coords,
             edge_threshold=edge_threshold,
@@ -113,7 +113,7 @@ class GlassBrainNetworkViz:
         )
 
         # Save
-        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        display.savefig(output_path)
         plt.close()
 
         logger.info(f"Connectome saved: {output_path}")

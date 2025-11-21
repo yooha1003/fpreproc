@@ -31,6 +31,7 @@ class FunctionalConnectivity:
         self.config = config
         self.fc_params = config['connectivity']['functional']
         self.atlas_params = config['atlas']
+        self.group_mode = self.fc_params.get('group_mode', False)
 
     def extract_roi_time_series(self, func_img: str, atlas_img: str) -> Tuple[np.ndarray, list]:
         """
@@ -291,17 +292,50 @@ class FunctionalConnectivity:
         np.save(ts_file, time_series)
 
         # Compute connectivity matrices for different methods
-        methods = self.fc_params.get('methods', ['correlation'])
+        requested_methods = self.fc_params.get('methods', ['correlation'])
+        methods = []
+        for method in requested_methods:
+            normalized_method = method.replace('_', ' ').strip().lower()
+            if normalized_method == 'tangent' and not self.group_mode:
+                logger.warning(
+                    "Skipping tangent space connectivity because group_mode is disabled."
+                )
+                continue
+            methods.append(method)
+
+        if not methods:
+            logger.info("No valid connectivity methods requested; defaulting to 'correlation'.")
+            methods = ['correlation']
 
         conn_matrices = {}
+        skipped_methods = []
         for method in methods:
             logger.info(f"Computing {method} connectivity...")
-            conn_matrix = self.compute_correlation_matrix(time_series, method)
+            try:
+                conn_matrix = self.compute_correlation_matrix(time_series, method)
+            except ValueError as e:
+                # Tangent space fails for single-subject runs; skip instead of aborting
+                if 'tangent space parametrization' in str(e).lower():
+                    logger.warning(
+                        "Skipping tangent connectivity (requires group-level data)."
+                    )
+                    skipped_methods.append(method)
+                    continue
+                raise
+
             conn_matrices[method] = conn_matrix
 
             # Save matrix
             matrix_file = output_dir / f'{subject_id}_fc_{method}.npy'
             np.save(matrix_file, conn_matrix)
+
+        # Ensure at least a correlation matrix exists for downstream steps
+        if not conn_matrices:
+            logger.info("No connectivity matrices computed; falling back to correlation.")
+            corr_matrix = self.compute_correlation_matrix(time_series, 'correlation')
+            conn_matrices['correlation'] = corr_matrix
+            corr_file = output_dir / f'{subject_id}_fc_correlation.npy'
+            np.save(corr_file, corr_matrix)
 
         # Compute graph metrics (using correlation)
         primary_matrix = conn_matrices.get('correlation', list(conn_matrices.values())[0])
@@ -335,7 +369,8 @@ class FunctionalConnectivity:
             'n_timepoints': time_series.shape[0],
             'time_series_file': str(ts_file),
             'connectivity_matrices': {m: str(output_dir / f'{subject_id}_fc_{m}.npy')
-                                     for m in methods},
+                                     for m in conn_matrices.keys()},
+            'skipped_methods': skipped_methods,
             'graph_metrics_file': str(metrics_file),
             'graph_metrics_summary': {
                 'n_nodes': graph_metrics.get('n_nodes'),

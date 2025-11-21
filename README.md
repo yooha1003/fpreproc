@@ -15,7 +15,7 @@ A comprehensive, modular pipeline for preprocessing resting-state fMRI data and 
 - **Functional Connectivity (FC)**
   - Pearson correlation
   - Partial correlation
-  - Tangent space embedding
+  - Tangent space embedding (set `group_mode` for multi-subject runs)
   - Graph theory metrics (degree, clustering, modularity, etc.)
 
 - **Independent Component Analysis (ICA)**
@@ -38,6 +38,9 @@ A comprehensive, modular pipeline for preprocessing resting-state fMRI data and 
   - tSNR maps
   - ICA component maps
   - Surface-based visualization
+
+- **Directed Effective Connectivity**
+  - Arrow-based plots for Granger / transfer entropy influence patterns
 
 ### Pipeline Execution
 - **Single Subject**: Process one subject end-to-end
@@ -75,12 +78,17 @@ fpreproc/
 │   │
 │   ├── visualization/                # Visualization tools
 │   │   ├── glass_brain_network.py
-│   │   └── activation_patterns.py
+│   │   ├── activation_patterns.py
+│   │   └── effective_connectivity_viz.py
 │   │
-│   └── utils/                        # Utility functions
-│       ├── data_loader.py
-│       ├── helpers.py
-│       └── quality_control.py
+│   ├── utils/                        # Utility functions
+│   │   ├── data_loader.py
+│   │   ├── helpers.py
+│   │   └── quality_control.py
+│   │
+│   ├── run_all_except_sub007.py           # Batch helper excluding sub-007
+│   ├── run_connectivity_except_sub007.py  # Connectivity/ICA/EC (except sub-007)
+│   └── run_sub007_preproc.py              # Preprocess-only helper for sub-007
 │
 ├── pipelines/
 │   ├── single_subject.py             # Single subject pipeline
@@ -299,6 +307,23 @@ python scripts/visualization/glass_brain_network.py \
     --atlas AAL
 ```
 
+#### Directed Effective Connectivity (arrow plot)
+```bash
+python scripts/visualization/effective_connectivity_viz.py \
+    results/connectivity/sub-001/sub-001_ec_granger.npy \
+    results/visualization/sub-001 \
+    --subject sub-001 \
+    --method granger \
+    --top-k 150
+```
+The matrix is assumed to have shape `[target, source]`; use `--min-weight` to drop weak links.
+
+### Helper Scripts (exclude sub-007)
+
+- `python scripts/run_sub007_preproc.py` — preprocess-only run for `sub-007` (skips connectivity/ICA/EC).
+- `python scripts/run_connectivity_except_sub007.py --preproc-root /data/data2/dataset/fpreproc/results/preprocessing --output-root /data/data2/dataset/fpreproc/results --resume-missing-only` — run connectivity, ICA, EC, and viz for all subjects **except** `sub-007` using already preprocessed data.
+- `python scripts/run_all_except_sub007.py --data-dir /data/data2/dataset/proc --output-dir /data/data2/dataset/fpreproc/results` — full pipeline for all subjects except `sub-007` (add `--sequential` to limit memory).
+
 ## Configuration
 
 Edit `config/pipeline_config.yaml` to customize:
@@ -390,6 +415,7 @@ connectivity:
       - "correlation"
       - "partial_correlation"
       - "tangent"          # requires multiple subjects to estimate a group mean
+    group_mode: false      # enable for multi-subject runs when tangent is needed
     threshold: 0.3
     # Valid values (case-insensitive): correlation, partial correlation,
     # tangent, covariance, precision
@@ -404,6 +430,7 @@ connectivity:
       - "transfer_entropy"
     max_lag: 5
 ```
+Single-subject runs automatically skip tangent connectivity when `group_mode` is `false`, falling back to correlation.
 
 ### Parallel Processing
 ```yaml
@@ -441,6 +468,7 @@ results/
 │       ├── sub-001_connectome_3d.html            # Interactive 3D
 │       ├── sub-001_connectivity_matrix.png       # Matrix heatmap
 │       ├── sub-001_tsnr_map.png                  # tSNR map
+│       ├── sub-001_ec_granger_directed.png       # Directed EC (granger/TE) arrow plot
 │       └── ica_components/                       # ICA visualizations
 │
 └── logs/

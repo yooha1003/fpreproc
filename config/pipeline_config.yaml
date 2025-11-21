@@ -117,6 +117,7 @@ connectivity:
       - "correlation"  # Pearson correlation
       - "partial_correlation"
       - "tangent"  # Tangent space embedding
+    group_mode: false  # Enable only when running across a group of subjects
     threshold: 0.3  # Threshold for sparse networks
 
   # ICA Parameters

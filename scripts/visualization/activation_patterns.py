@@ -245,7 +245,16 @@ class ActivationPatternViz:
         """
         logger.info("Creating slice montage...")
 
-        from nilearn import plotting
+        from nilearn import plotting, image
+
+        # plot_anat expects 3D; use mean over time if a 4D functional is provided
+        if len(img.shape) == 4:
+            logger.info("Detected 4D functional image; computing mean volume for montage")
+            img = image.mean_img(img)
+        elif len(img.shape) != 3:
+            raise ValueError(
+                f"Montage expects 3D or 4D image, got shape {img.shape}"
+            )
 
         # Plot all slices
         display = plotting.plot_anat(

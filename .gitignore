@@ -1,0 +1,25 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Tool caches
+nilearn_cache/
+*.egg-info/
+
+# Outputs and logs
+results/
+logs/
+*.log
+*.out
+*.err
+
+# Editors / OS
+.DS_Store
+.ipynb_checkpoints/
