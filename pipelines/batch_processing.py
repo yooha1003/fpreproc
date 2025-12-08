@@ -19,7 +19,7 @@ from utils.helpers import load_config, setup_logging, save_metadata
 from utils.data_loader import NiftiDataLoader
 
 # Import single subject pipeline
-from single_subject import SingleSubjectPipeline
+from pipelines.single_subject import SingleSubjectPipeline
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -9,6 +9,19 @@ data:
 
 # Preprocessing Parameters
 preprocessing:
+  # Brain extraction (skull-stripping) for anatomical images
+  brain_extraction:
+    method: "ants"  # "ants" (preferred), "bet", or "nilearn"
+    strategy: "soft"  # "soft" (init reg + BE) or "hard" (direct BE)
+    template: "/data/data2/dataset/fpreproc/template/adult/T_template0.nii.gz"
+    probability_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumProbabilityMask.nii.gz"
+    registration_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumRegistrationMask.nii.gz"
+    init_template: "/data/data2/dataset/fpreproc/template/adult/T_template0.nii.gz"  # Initial registration target (soft)
+    dimensionality: 3
+    bet:
+      frac: 0.5
+      robust: true
+
   # Motion correction
   motion_correction:
     reference_volume: "middle"  # or "mean", "first"

@@ -121,19 +121,25 @@ def save_metadata(metadata: Dict[str, Any], output_path: str) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Convert numpy types to native Python types
-    def convert_types(obj):
+    def convert_types(obj: Any) -> Any:
+        """Recursively convert objects to JSON-serializable types."""
+        if isinstance(obj, dict):
+            return {str(k): convert_types(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple, set)):
+            return [convert_types(v) for v in obj]
         if isinstance(obj, np.integer):
             return int(obj)
-        elif isinstance(obj, np.floating):
+        if isinstance(obj, np.floating):
             return float(obj)
-        elif isinstance(obj, np.ndarray):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, Path):
+        if isinstance(obj, Path):
             return str(obj)
         return obj
 
-    metadata_converted = {k: convert_types(v) for k, v in metadata.items()}
+    metadata_converted = convert_types(metadata)
 
     with open(output_path, 'w') as f:
         json.dump(metadata_converted, f, indent=2)

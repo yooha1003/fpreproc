@@ -30,6 +30,15 @@ class Coregistration:
 
         self.config = config
         self.coreg_params = config['registration']['func_to_anat']
+        self.ants_env = os.environ.copy()
+        ants_lib = Path('/opt/ants/lib')
+        ants_bin = Path('/opt/ants/bin')
+        if ants_lib.exists():
+            current = self.ants_env.get('LD_LIBRARY_PATH', '')
+            self.ants_env['LD_LIBRARY_PATH'] = f"{ants_lib}:{current}" if current else str(ants_lib)
+        if ants_bin.exists():
+            current_path = self.ants_env.get('PATH', '')
+            self.ants_env['PATH'] = f"{ants_bin}:{current_path}" if current_path else str(ants_bin)
 
     def run_flirt(self, moving: str, fixed: str, output: str,
                   output_matrix: str) -> Tuple[str, str]:
@@ -131,7 +140,7 @@ class Coregistration:
         logger.info(f"Command: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.ants_env)
 
             # Rename outputs
             ants_output = f'{output_prefix}Warped.nii.gz'
@@ -153,6 +162,19 @@ class Coregistration:
             else:
                 logger.error("ANTs coregistration missing affine matrix %s", ants_matrix)
                 raise RuntimeError(f"ANTs matrix missing: {ants_matrix}")
+
+            # Capture warp if produced
+            ants_warp = Path(f'{output_prefix}1Warp.nii.gz')
+            ants_invwarp = Path(f'{output_prefix}1InverseWarp.nii.gz')
+            warp_out = Path(output_path.parent / f'{output_path.stem}1Warp.nii.gz')
+            invwarp_out = Path(output_path.parent / f'{output_path.stem}1InverseWarp.nii.gz')
+            if ants_warp.exists():
+                ants_warp.rename(warp_out)
+            if ants_invwarp.exists():
+                ants_invwarp.rename(invwarp_out)
+
+            self.last_ants_warp = str(warp_out) if warp_out.exists() else None
+            self.last_ants_invwarp = str(invwarp_out) if invwarp_out.exists() else None
 
             logger.info("ANTs registration completed successfully")
             return output, output_matrix
@@ -327,6 +349,8 @@ class Coregistration:
             'mean_functional': str(mean_func),
             'registered_mean': str(registered_mean),
             'transformation_matrix': str(transform_matrix),
+            'ants_warp': getattr(self, 'last_ants_warp', None),
+            'ants_inverse_warp': getattr(self, 'last_ants_invwarp', None),
             'qc_plot': str(qc_plot),
         }
 

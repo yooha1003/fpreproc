@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import logging
 import shutil
+import os
 from typing import Optional, Tuple, Union, Dict, Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,6 +33,22 @@ class SpatialNormalization:
         self.config = config
         self.norm_params = config['registration']['anat_to_standard']
         self.method = self.norm_params.get('method', 'fnirt').lower()
+        self.ants_env = os.environ.copy()
+        ants_lib = Path('/opt/ants/lib')
+        ants_bin = Path('/opt/ants/bin')
+        if ants_lib.exists():
+            current = self.ants_env.get('LD_LIBRARY_PATH', '')
+            path_str = f"{ants_lib}:{current}" if current else str(ants_lib)
+            self.ants_env['LD_LIBRARY_PATH'] = path_str
+        if ants_bin.exists():
+            path_current = self.ants_env.get('PATH', '')
+            path_str = f"{ants_bin}:{path_current}" if path_current else str(ants_bin)
+            self.ants_env['PATH'] = path_str
+
+        self.ants_available = bool(shutil.which('antsRegistration') or shutil.which('antsRegistrationSyN.sh'))
+        if self.method == 'ants' and not self.ants_available:
+            logger.warning("antsRegistration not found in PATH; falling back to FNIRT.")
+            self.method = 'fnirt'
         self.ants_params = self.norm_params.get('ants', {})
 
     def run_fnirt(self, anat: str, template: str, output: str,
@@ -230,7 +247,7 @@ class SpatialNormalization:
         logger.info(f"ANTs command: {' '.join(cmd)}")
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.ants_env)
         except FileNotFoundError:
             logger.warning("ANTs not found, using nilearn fallback")
             return self.run_nilearn_normalize(moving, fixed, output)
@@ -261,7 +278,7 @@ class SpatialNormalization:
 
         logger.info(f"Applying ANTs transforms: {' '.join(apply_cmd)}")
         try:
-            subprocess.run(apply_cmd, check=True, capture_output=True, text=True)
+            subprocess.run(apply_cmd, check=True, capture_output=True, text=True, env=self.ants_env)
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logger.error(f"antsApplyTransforms failed: {getattr(e, 'stderr', e)}")
             raise
@@ -325,9 +342,62 @@ class SpatialNormalization:
 
         return output, matrix_file
 
+    def _convert_flirt_to_itk(self, flirt_matrix: str, ref: str, src: str) -> Optional[str]:
+        """
+        Convert a FLIRT affine matrix to ITK format for ANTs.
+
+        Parameters
+        ----------
+        flirt_matrix : str
+            Path to FLIRT .mat file (moving -> fixed)
+        ref : str
+            Reference image used in FLIRT (fixed)
+        src : str
+            Source image used in FLIRT (moving)
+
+        Returns
+        -------
+        Optional[str]
+            Path to ITK transform file or None if conversion fails
+        """
+        # If this is already an ANTs ITK transform, just return it
+        try:
+            with open(flirt_matrix, 'r') as f:
+                first_line = f.readline()
+                if 'TransformFile' in first_line:
+                    logger.info(f"Detected ITK transform, using as-is: {flirt_matrix}")
+                    return flirt_matrix
+        except Exception:
+            pass
+
+        itk_out = Path(flirt_matrix).with_suffix('').with_name(
+            f"{Path(flirt_matrix).stem}_itk.txt"
+        )
+
+        cmd = [
+            'c3d_affine_tool',
+            flirt_matrix,
+            '-ref', ref,
+            '-src', src,
+            '-fsl2ras',
+            '-oitk', str(itk_out)
+        ]
+
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info(f"Converted FLIRT affine to ITK: {itk_out}")
+            return str(itk_out)
+        except FileNotFoundError:
+            logger.warning("c3d_affine_tool not found; cannot convert FLIRT affine to ITK. Using only anat->MNI transforms.")
+            return None
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to convert FLIRT affine to ITK: {e.stderr}")
+            return None
+
     def apply_normalization_to_functional(self, func_img: str,
                                           transform: Union[str, Dict[str, Any]],
-                                          template: str, output: str) -> str:
+                                          template: str, output: str,
+                                          func_to_anat_itk: Optional[str] = None) -> str:
         """
         Apply normalization transformation to functional data.
 
@@ -341,6 +411,8 @@ class SpatialNormalization:
             Template image
         output : str
             Output normalized functional image
+        func_to_anat_itk : str, optional
+            Optional func->anat transform in ITK format to chain with anat->MNI
 
         Returns
         -------
@@ -353,6 +425,11 @@ class SpatialNormalization:
         if isinstance(transform, dict) and transform.get('type') == 'ants':
             warp = transform.get('warp')
             affine = transform.get('affine')
+            try:
+                img_shape = nib.load(func_img).shape
+                is_4d = len(img_shape) == 4 and img_shape[3] > 1
+            except Exception:
+                is_4d = False
             cmd = [
                 'antsApplyTransforms',
                 '-d', '3',
@@ -360,15 +437,20 @@ class SpatialNormalization:
                 '-r', template,
                 '-o', output,
             ]
+            if is_4d:
+                cmd.extend(['-e', '3'])
 
             # Order matters: warp first, then affine
             if warp:
                 cmd.extend(['-t', warp])
             if affine:
                 cmd.extend(['-t', affine])
+            if func_to_anat_itk and Path(func_to_anat_itk).exists():
+                # Apply func->anat last in list so it is applied first.
+                cmd.extend(['-t', func_to_anat_itk])
 
             try:
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.ants_env)
                 logger.info("Applied ANTs transforms to functional data")
                 return output
             except (FileNotFoundError, subprocess.CalledProcessError):
@@ -526,8 +608,21 @@ class SpatialNormalization:
 
         # Apply to functional data
         normalized_func = output_dir / f'{subject_id}_func_mni.nii.gz'
+        func_to_anat = output_dir / f'{subject_id}_func2anat.mat'
+        func_to_anat = func_to_anat if func_to_anat.exists() else None
+
+        func_src = output_dir / f'{subject_id}_mean_func.nii.gz'
+        func_src = func_src if func_src.exists() else func_img
+
+        func_to_anat_itk = None
+        if func_to_anat:
+            func_to_anat_itk = self._convert_flirt_to_itk(
+                str(func_to_anat), anat_img, str(func_src)
+            )
+
         self.apply_normalization_to_functional(
-            func_img, warp_field, str(template), str(normalized_func)
+            func_img, warp_field, str(template), str(normalized_func),
+            func_to_anat_itk=func_to_anat_itk
         )
 
         # Create QC overlays
@@ -551,6 +646,8 @@ class SpatialNormalization:
             'normalized_anatomical': str(normalized_anat),
             'normalized_functional': str(normalized_func),
             'warp_field': warp_field,
+            'func_to_anat_transform': str(func_to_anat) if func_to_anat else None,
+            'func_to_anat_itk': func_to_anat_itk,
             'qc_plot': str(qc_anat),
         }
 

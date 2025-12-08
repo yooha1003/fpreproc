@@ -18,6 +18,7 @@ from utils.data_loader import NiftiDataLoader
 from utils.quality_control import QualityControl
 
 # Preprocessing
+from preprocessing.brain_extraction import BrainExtraction
 from preprocessing.motion_correction import MotionCorrection
 from preprocessing.slice_timing import SliceTimingCorrection
 from preprocessing.coregistration import Coregistration
@@ -150,11 +151,30 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('load_data')
 
             # =================================================================
-            # STEP 2: Motion Correction
+            # STEP 2: Brain Extraction (Anatomical)
+            # =================================================================
+            if 'brain_extraction' not in skip_steps:
+                self.logger.info("\n" + "="*80)
+                self.logger.info("STEP 2: Brain Extraction (Anatomical)")
+                self.logger.info("="*80)
+
+                extractor = BrainExtraction(self.config)
+                brain_results = extractor.run(
+                    str(anat_file),
+                    str(preproc_dir),
+                    subject_id
+                )
+
+                anat_file = brain_results['brain_image']
+                results['brain_extraction'] = brain_results
+                results['steps_completed'].append('brain_extraction')
+
+            # =================================================================
+            # STEP 3: Motion Correction
             # =================================================================
             if 'motion_correction' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 2: Motion Correction")
+                self.logger.info("STEP 3: Motion Correction")
                 self.logger.info("="*80)
 
                 mc = MotionCorrection(self.config)
@@ -169,11 +189,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('motion_correction')
 
             # =================================================================
-            # STEP 3: Slice Timing Correction
+            # STEP 4: Slice Timing Correction
             # =================================================================
             if 'slice_timing' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 3: Slice Timing Correction")
+                self.logger.info("STEP 4: Slice Timing Correction")
                 self.logger.info("="*80)
 
                 stc = SliceTimingCorrection(self.config)
@@ -190,11 +210,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('slice_timing')
 
             # =================================================================
-            # STEP 4: Coregistration
+            # STEP 5: Coregistration
             # =================================================================
             if 'coregistration' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 4: Coregistration (Functional to Anatomical)")
+                self.logger.info("STEP 5: Coregistration (Functional to Anatomical)")
                 self.logger.info("="*80)
 
                 coreg = Coregistration(self.config)
@@ -209,11 +229,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('coregistration')
 
             # =================================================================
-            # STEP 5: Spatial Normalization
+            # STEP 6: Spatial Normalization
             # =================================================================
             if 'normalization' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 5: Spatial Normalization to MNI")
+                self.logger.info("STEP 6: Spatial Normalization to MNI")
                 self.logger.info("="*80)
 
                 norm = SpatialNormalization(self.config)
@@ -229,11 +249,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('normalization')
 
             # =================================================================
-            # STEP 6: Spatial Smoothing
+            # STEP 7: Spatial Smoothing
             # =================================================================
             if 'smoothing' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 6: Spatial Smoothing")
+                self.logger.info("STEP 7: Spatial Smoothing")
                 self.logger.info("="*80)
 
                 smooth = SpatialSmoothing(self.config)
@@ -249,11 +269,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('smoothing')
 
             # =================================================================
-            # STEP 7: Functional Connectivity
+            # STEP 8: Functional Connectivity
             # =================================================================
             if 'functional_connectivity' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 7: Functional Connectivity Analysis")
+                self.logger.info("STEP 8: Functional Connectivity Analysis")
                 self.logger.info("="*80)
 
                 fc = FunctionalConnectivity(self.config)
@@ -267,11 +287,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('functional_connectivity')
 
             # =================================================================
-            # STEP 8: ICA Analysis
+            # STEP 9: ICA Analysis
             # =================================================================
             if 'ica' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 8: Independent Component Analysis")
+                self.logger.info("STEP 9: Independent Component Analysis")
                 self.logger.info("="*80)
 
                 ica = ICAAnalysis(self.config)
@@ -285,11 +305,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('ica')
 
             # =================================================================
-            # STEP 9: Effective Connectivity
+            # STEP 10: Effective Connectivity
             # =================================================================
             if 'effective_connectivity' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 9: Effective Connectivity Analysis")
+                self.logger.info("STEP 10: Effective Connectivity Analysis")
                 self.logger.info("="*80)
 
                 # Use time series from FC analysis
@@ -306,11 +326,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('effective_connectivity')
 
             # =================================================================
-            # STEP 10: Network Visualization
+            # STEP 11: Network Visualization
             # =================================================================
             if 'network_viz' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 10: Network Visualization")
+                self.logger.info("STEP 11: Network Visualization")
                 self.logger.info("="*80)
 
                 # Use correlation matrix from FC
@@ -327,11 +347,11 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('network_viz')
 
             # =================================================================
-            # STEP 11: Activation Pattern Visualization
+            # STEP 12: Activation Pattern Visualization
             # =================================================================
             if 'activation_viz' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 11: Activation Pattern Visualization")
+                self.logger.info("STEP 12: Activation Pattern Visualization")
                 self.logger.info("="*80)
 
                 viz_act = ActivationPatternViz(self.config)
