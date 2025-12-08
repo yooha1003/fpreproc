@@ -4,6 +4,7 @@ Coregistration of functional to anatomical images.
 """
 
 import sys
+import os
 import numpy as np
 import nibabel as nib
 from pathlib import Path

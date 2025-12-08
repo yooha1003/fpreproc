@@ -37,7 +37,10 @@ class BrainExtraction:
 
         self.config = config
         self.params = config.get('preprocessing', {}).get('brain_extraction', {})
-        self.method = self.params.get('method', 'ants').lower()
+        # 강제: YH + ANTs soft 전략만 사용
+        self.method = 'ants_soft'
+        self.params['method'] = self.method
+        self.params['strategy'] = 'soft'
         base_dir = Path(__file__).resolve().parents[2]
         self.fallback_ants_script = base_dir / 'setup' / 'antsBrainExtraction.sh'
         self.utils_ants_script = base_dir / 'scripts' / 'utils' / 'antsBrainExtraction.sh'
