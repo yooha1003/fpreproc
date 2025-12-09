@@ -12,8 +12,10 @@ from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+# Ensure project root and scripts directory are on the path when run directly
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR / 'scripts'))
 
 from utils.helpers import load_config, setup_logging, save_metadata
 from utils.data_loader import NiftiDataLoader
