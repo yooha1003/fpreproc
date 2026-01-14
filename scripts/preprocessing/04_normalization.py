@@ -36,13 +36,26 @@ class SpatialNormalization:
         self.ants_env = os.environ.copy()
         ants_lib = Path('/opt/ants/lib')
         ants_bin = Path('/opt/ants/bin')
-        if ants_lib.exists():
+        conda_ants_lib = Path('/home/owl/miniconda3/pkgs/ants-2.5.1-h00ab1b0_0/lib')
+        ld_paths = []
+        for candidate in [ants_lib, conda_ants_lib,
+                          Path('/home/owl/miniconda3/envs/fmri_pipeline/lib'),
+                          Path('/home/owl/miniconda3/lib')]:
+            if candidate.exists():
+                ld_paths.append(str(candidate))
+        if ld_paths:
             current = self.ants_env.get('LD_LIBRARY_PATH', '')
-            path_str = f"{ants_lib}:{current}" if current else str(ants_lib)
+            joined = ":".join(ld_paths)
+            path_str = f"{joined}:{current}" if current else joined
             self.ants_env['LD_LIBRARY_PATH'] = path_str
-        if ants_bin.exists():
+        bin_paths = []
+        for candidate in [Path('/home/owl/miniconda3/envs/fmri_pipeline/bin'), ants_bin]:
+            if candidate.exists():
+                bin_paths.append(str(candidate))
+        if bin_paths:
             path_current = self.ants_env.get('PATH', '')
-            path_str = f"{ants_bin}:{path_current}" if path_current else str(ants_bin)
+            joined = ":".join(bin_paths)
+            path_str = f"{joined}:{path_current}" if path_current else joined
             self.ants_env['PATH'] = path_str
 
         self.ants_available = bool(shutil.which('antsRegistration') or shutil.which('antsRegistrationSyN.sh'))

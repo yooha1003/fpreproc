@@ -34,12 +34,25 @@ class Coregistration:
         self.ants_env = os.environ.copy()
         ants_lib = Path('/opt/ants/lib')
         ants_bin = Path('/opt/ants/bin')
-        if ants_lib.exists():
+        conda_ants_lib = Path('/home/owl/miniconda3/pkgs/ants-2.5.1-h00ab1b0_0/lib')
+        ld_paths = []
+        for candidate in [ants_lib, conda_ants_lib,
+                          Path('/home/owl/miniconda3/envs/fmri_pipeline/lib'),
+                          Path('/home/owl/miniconda3/lib')]:
+            if candidate.exists():
+                ld_paths.append(str(candidate))
+        if ld_paths:
             current = self.ants_env.get('LD_LIBRARY_PATH', '')
-            self.ants_env['LD_LIBRARY_PATH'] = f"{ants_lib}:{current}" if current else str(ants_lib)
-        if ants_bin.exists():
+            joined = ":".join(ld_paths)
+            self.ants_env['LD_LIBRARY_PATH'] = f"{joined}:{current}" if current else joined
+        bin_paths = []
+        for candidate in [Path('/home/owl/miniconda3/envs/fmri_pipeline/bin'), ants_bin]:
+            if candidate.exists():
+                bin_paths.append(str(candidate))
+        if bin_paths:
             current_path = self.ants_env.get('PATH', '')
-            self.ants_env['PATH'] = f"{ants_bin}:{current_path}" if current_path else str(ants_bin)
+            joined = ":".join(bin_paths)
+            self.ants_env['PATH'] = f"{joined}:{current_path}" if current_path else joined
 
     def run_flirt(self, moving: str, fixed: str, output: str,
                   output_matrix: str) -> Tuple[str, str]:

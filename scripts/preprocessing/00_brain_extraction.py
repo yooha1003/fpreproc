@@ -55,14 +55,27 @@ class BrainExtraction:
         self._ants_registration = shutil.which('antsRegistration') or shutil.which('antsRegistrationSyN.sh')
         ants_lib = Path('/opt/ants/lib')
         ants_bin = Path('/opt/ants/bin')
+        conda_ants_lib = Path('/home/owl/miniconda3/pkgs/ants-2.5.1-h00ab1b0_0/lib')
         self._ants_env = os.environ.copy()
-        if ants_lib.exists():
+        ld_paths = []
+        for candidate in [ants_lib, conda_ants_lib,
+                          Path('/home/owl/miniconda3/envs/fmri_pipeline/lib'),
+                          Path('/home/owl/miniconda3/lib')]:
+            if candidate.exists():
+                ld_paths.append(str(candidate))
+        if ld_paths:
             current = self._ants_env.get('LD_LIBRARY_PATH', '')
-            path_str = f"{ants_lib}:{current}" if current else str(ants_lib)
+            joined = ":".join(ld_paths)
+            path_str = f"{joined}:{current}" if current else joined
             self._ants_env['LD_LIBRARY_PATH'] = path_str
-        if ants_bin.exists():
+        bin_paths = []
+        for candidate in [Path('/home/owl/miniconda3/envs/fmri_pipeline/bin'), ants_bin]:
+            if candidate.exists():
+                bin_paths.append(str(candidate))
+        if bin_paths:
             path_current = self._ants_env.get('PATH', '')
-            path_str = f"{ants_bin}:{path_current}" if path_current else str(ants_bin)
+            joined = ":".join(bin_paths)
+            path_str = f"{joined}:{path_current}" if path_current else joined
             self._ants_env['PATH'] = path_str
         path_current = self._ants_env.get('PATH', '')
         extra_paths = []

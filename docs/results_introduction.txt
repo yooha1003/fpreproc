@@ -1,0 +1,139 @@
+# 결과 산출물 해설서 (Markdown)
+
+본 문서는 `fpreproc/results`에 생성된 모든 핵심 산출물(전처리, 연결성, 시각화, 메타데이터)의 의미와 계산 방식, 연구적 해석 포인트를 정리한 매뉴얼입니다. 각 항목은 해당 파일·그림이 무엇을 나타내며, 어떤 통계/알고리즘으로 계산되고, 해석 시 주의할 점을 설명합니다. 수식은 Markdown/LaTeX 표기법을 사용했습니다.
+
+---
+
+## 1. 디렉터리와 전반 구조
+- `batch_processing_summary.json`: 15명 전체 파이프라인 실행 요약(성공/실패, 시간). 재현성·운영 기록용.
+- `sub-XXX_pipeline_results.json`: 피험자별 전처리→FC→ICA→EC→시각화 단계별 입출력 경로·품질지표를 담은 프로비넌스 파일.
+- `preprocessing/sub-XXX/`: 정렬/정규화/스무딩된 NIfTI와 모션 파라미터, 단계별 메타데이터(JSON).
+- `connectivity/sub-XXX/`: ROI 시계열(`*_roi_timeseries.npy`), 기능적 연결성 행렬(`*_fc_*.npy`), 그래프 지표(JSON), ICA/EC 결과.
+- `visualization/sub-XXX/`: FC/EC 시각화 PNG·HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG 등 QC·프레젠테이션용 아티팩트.
+- `logs/`: 실행 로그(경고/에러 추적).
+
+---
+
+## 2. 전처리 산출물
+### 모션 파라미터와 품질지표
+- 파일: `preprocessing/sub-XXX/sub-XXX_motion_params.txt`, `*_motion_correction_metadata.json`
+- 내용: MCFLIRT/3dvolreg 결과 6자유도(pitch/roll/yaw + x/y/z) 모션 파라미터.
+- FD(framewise displacement) 계산(QualityControl):  
+  - 회전(rad)을 50 mm 반경으로 mm 단위 변환 후,  
+    \[
+    FD_t = \sum_{k=1}^{6} |p_{t,k} - p_{t-1,k}|
+    \]
+  - `mean_fd`, `max_fd`, `perc_fd_above_0.5`가 `*_pipeline_results.json`에 저장.
+- 해석: FD>0.5 mm 프레임이 많으면 스컴빙/ICA-AROMA/모션 회귀 필요.
+
+### 정규화/스무딩 결과
+- 파일: `preprocessing/sub-XXX/sub-XXX_smoothed.nii.gz` (최종 분석용), `*_func_mni.nii.gz` (MNI 정규화본), `*_anat_brain.nii.gz` (두개골 제거 T1).
+- 절차: ANTs SyN 정규화→MNI152 2 mm 공간, FWHM 6 mm 가우시안 스무딩.
+- 연구적 의미: 모든 연결성·ICA·tSNR 계산의 입력 4D 볼륨.
+
+### tSNR (Temporal SNR)
+- 생성 코드: `scripts/visualization/activation_patterns.py` → `QualityControl.compute_tsnr`
+- 파일: `visualization/sub-XXX/sub-XXX_tsnr.nii.gz`, `sub-XXX_tsnr_map.png`
+- 계산: \(\mathrm{tSNR}(v) = \frac{\mu_t(v)}{\sigma_t(v)}\) (시간 축 평균/표준편차).  
+  마스크 미지정 시 \(\mathrm{tSNR}>0\) 보이젤 평균을 `mean_tsnr`로 저장.
+- 해석: 50 이상이면 안정적, <40이면 노이즈·정렬 재검토 권장.
+
+---
+
+## 3. 기능적 연결성 (FC)
+### ROI 시계열
+- 파일: `connectivity/sub-XXX/sub-XXX_roi_timeseries.npy` (형태: n_timepoints × n_rois)
+- 생성 코드: `scripts/connectivity/functional_connectivity.py` → `NiftiLabelsMasker` (표준화+디트렌드)로 AAL116 ROI 평균 시계열 추출.
+- 해석: 이후 상관/부분상관/ICA/EC의 입력. 스파이크·모션 아웃라이어가 있으면 시각화/스컴빙 필요.
+
+### 상관/부분상관 행렬
+- 파일: `*_fc_correlation.npy`, `*_fc_partial_correlation.npy`
+- 계산(각 ROI 쌍 \(i,j\)):  
+  - 피어슨 상관: \(\rho_{ij} = \frac{\mathrm{cov}(X_i, X_j)}{\sigma_{X_i}\sigma_{X_j}}\).  
+  - 부분상관: 정규화된 정밀도 행렬 \(\Theta=\Sigma^{-1}\)에서 \(\rho^{\text{partial}}_{ij} = -\Theta_{ij}/\sqrt{\Theta_{ii}\Theta_{jj}}\) (nilearn `ConnectivityMeasure(kind='partial correlation')`).
+- 시각화: `visualization/sub-XXX/sub-XXX_connectivity_matrix.png` (Seaborn heatmap). 예시 그림은 AAL 116 ROI 상관값을 색상(청색=음, 적색=양)으로 표현.
+- 연구적 의미: 피어슨은 전체 공분산, 부분상관은 다른 ROI를 조건부로 제거한 직결성(sparse network)에 가까움. 모션 잔류 시 양의 상관 증가 위험.
+
+### 그래프 지표
+- 파일: `*_graph_metrics.json`
+- 절차: |r| > 0.3 임계로 이진화 후(NetworkX+BCT)  
+  - 밀도: \(2E/(N(N-1))\)  
+  - 모듈러리티: Louvain `community_louvain` 결과 \(Q\)  
+  - 클러스터링, 길이, 효율성, 중심성 등
+- 해석: 임계값/스파스화에 민감. 모션/글로벌 노이즈 제거 후 재계산 권장.
+
+---
+
+## 4. 독립성분분석 (ICA)
+- 파일: `*_ica_components.nii.gz` (4D 성분맵), `*_ica_timecourses.npy`, `*_ica_spatial.npy`, `*_ica_classifications.json`
+- 계산: `functional_connectivity.py`에서 nilearn FastICA(컴포넌트=20). 고주파 비율 기반으로 `signal`/`noise` 라벨을 JSON에 기록.
+- 시각화: `visualization/sub-XXX/ica_components/sub-XXX_ica_component_XX.png` (최대 10개 기본 출력).
+- 해석: 노이즈 라벨이거나 모션 링 아티팩트 성분은 제거 후 재구성 → FC/EC/통계에 반영 가능.
+
+---
+
+## 5. 방향성 연결성 (EC)
+- 파일: `*_ec_granger.npy`, `*_ec_transfer_entropy.npy` (행렬 shape: n_rois × n_rois, [행=타겟, 열=소스])
+- Granger Causality(`effective_connectivity.py`): 각 쌍에 대해 VAR 회귀로 F-통계 최대값  
+  \[
+  H_0: X_j \nrightarrow X_i,\quad
+  F = \frac{(RSS_r - RSS_u)/p}{RSS_u/(T-2p-1)}
+  \]
+  여기서 \(p\)=max_lag(기본 5), \(T\)=샘플 길이. 값이 클수록 j→i 영향 강.
+- Transfer Entropy: 10-bin 이산화 후  
+  \[
+  TE_{X\to Y} = H(Y_t|Y_{t-\tau}) - H(Y_t|Y_{t-\tau}, X_{t-\tau})
+  \]
+  (조건부 엔트로피는 공분포 빈도로 추정). 양수일수록 방향 정보전달 증가.
+- 해석: 정상성/길이 충분성 전제. 모션·노이즈 제거 후 재계산 필요. 절대값 임계나 상위 k% 엣지 선택해 가시화 권장.
+
+---
+
+## 6. 시각화 결과 (모두 `visualization/sub-XXX/` 하위)
+### 네트워크 시각화 (`glass_brain_network.py`)
+- `sub-XXX_connectome_glass_brain.png`: 상관행렬 상위 5%(|r| 기준) 엣지를 유리뇌 위에 표시. AAL 좌표(`find_parcellation_cut_coords`) 사용, 두께·색은 가중치.
+- `sub-XXX_connectome_3d.html`: Plotly 3D 인터랙티브 버전. 95백분위수 초과 엣지만 표시.
+- `sub-XXX_connectome_circular.png`: 원형(Chord) 다이어그램, 상위 5% 엣지만 직선 연결. 노드 라벨은 ROI 번호.
+- `sub-XXX_connectivity_matrix.png`: 상관행렬 히트맵(예시 그림). 색상 막대는 -1~1 연결 강도.
+- 통계적 의미: 시각화는 추정치 표현일 뿐 p-value/다중비교 보정 없음. 해석 전 모션/노이즈 제어, 임계·스파스화 기준을 명시해야 함.
+
+### 활성/품질 시각화 (`activation_patterns.py`)
+- `sub-XXX_mean_functional.png`: 시간 평균된 fMRI(정규화 후) 정렬 QC.
+- `sub-XXX_tsnr_map.png`: tSNR 공간 분포. 고주파 노이즈·드랍아웃 확인.
+- `sub-XXX_slice_montage.png`: Z축 12개 슬라이스 몽타주 QC.
+- `ica_components/*.png`: ICA 성분별 통계맵(기본 10개) – 노이즈/생리/모션 성분 식별에 사용.
+- `sub-XXX_activation_viz_metadata.json`: 위 그림 경로와 `mean_tsnr` 기록.
+
+---
+
+## 7. 메타데이터와 로그
+- `*_pipeline_results.json`: 모든 단계의 입출력 파일 경로, 실행 시간, 주요 지표(mean_fd, n_timepoints, mean_tsnr, 그래프 밀도·모듈러리티 등). 재현성·보고서에 인용.
+- `*_fc_metadata.json`, `*_ec_metadata.json`, `*_network_viz_metadata.json`, `*_activation_viz_metadata.json`: 각 단계별 입력, 파라미터(예: atlas=AAL, methods, n_rois), 산출물 경로.
+- `logs/*.log`: 도구별 경고/에러 확인. 재처리 전 필수 점검.
+
+---
+
+## 8. 해석·후속 작업 가이드
+1) **모션 제어**: FD>0.5 mm 프레임 비율이 매우 높음 → 스컴빙(고FD 프레임 제거)·ICA-AROMA·파워모션 회귀 후 FC/EC 재계산.  
+2) **tSNR 검증**: <40 피험자는 재정렬/노이즈 제거 또는 분석 제외 검토.  
+3) **네트워크 통계**: 상관행렬은 Fisher z 변환 후 그룹 통계; 그래프 지표는 임계(|r|) 또는 비용정규화(consistency) 후 비교.  
+4) **방향성 연결성**: 정상성·샘플길이 확인, 라그 선정(정보준거/ACF), 유의성 검정·FDR 필요.  
+5) **재현성**: 재처리 시 본 문서와 `results_overview*.{csv,txt}`를 함께 갱신해 버전·파라미터 추적.
+
+---
+
+## 9. 빠른 파일 의미 사전 (예시 경로는 sub-001)
+- 전처리본: `preprocessing/sub-001/sub-001_smoothed.nii.gz` — 정규화·스무딩된 분석 입력 4D.
+- 모션 파라미터: `preprocessing/sub-001/sub-001_motion_params.txt` — 6DOF 모션; FD 계산 가능.
+- ROI 시계열: `connectivity/sub-001/sub-001_roi_timeseries.npy` — AAL116 ROI 평균 시계열.
+- FC 행렬: `connectivity/sub-001/sub-001_fc_correlation.npy` — 피어슨 상관 116×116.
+- 부분상관: `connectivity/sub-001/sub-001_fc_partial_correlation.npy` — 정밀도 행렬 기반 조건부 상관.
+- 그래프 지표: `connectivity/sub-001/sub-001_graph_metrics.json` — |r|>0.3 이진 그래프의 밀도·모듈러리티 등.
+- ICA 맵: `connectivity/sub-001/sub-001_ica_components.nii.gz` + `ica_components/*.png` — 신호/노이즈 성분 분리.
+- EC: `connectivity/sub-001/sub-001_ec_granger.npy`, `sub-001_ec_transfer_entropy.npy` — 방향성 영향 크기 행렬.
+- 네트워크 시각화: `visualization/sub-001/sub-001_connectivity_matrix.png` — 상관행렬 히트맵.  
+  `sub-001_connectome_glass_brain.png` — 상위 5% 엣지의 공간 위치.  
+  `sub-001_connectome_circular.png` — 상위 엣지의 원형 표현.  
+  `sub-001_connectome_3d.html` — 인터랙티브 3D.
+- 품질/활성: `visualization/sub-001/sub-001_tsnr_map.png`, `sub-001_mean_functional.png`, `sub-001_slice_montage.png` — 정렬·노이즈 QC.
+- 파이프라인 기록: `sub-001_pipeline_results.json` — 단계별 입출력·품질 요약.

@@ -1,0 +1,187 @@
+fMRI 전처리/연결성 결과 설명 (KOR)
+근거 디렉터리: fpreproc/results
+
+[전체 개요]
+- 배치 요약: fpreproc/results/batch_processing_summary.json (15명 처리, 성공률/시간/ID 기록)
+- 실행 로그: fpreproc/results/logs (피험자별 실행 시 경고/에러 확인용)
+- 하위 폴더: preprocessing/ (전처리 산출물), connectivity/ (FC/ICA/EC), visualization/ (QC 및 시각화 PNG/HTML)
+
+[피험자 sub-001]
+- 품질 요약: n_timepoints=281, mean FD=4.26, percFD>0.5=98.2%, mean tSNR=49.7; 움직임 높음 (mean FD 4.26, 98.2% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-001_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-001/sub-001_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-001/sub-001_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-001/sub-001_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-001/sub-001_coregistration_metadata.json, fpreproc/results/preprocessing/sub-001/sub-001_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-001/sub-001_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-001/sub-001_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-001/sub-001_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-001/sub-001_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-001/sub-001_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-001/sub-001_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-001/sub-001_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-001/sub-001_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-001/sub-001_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-001/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-002]
+- 품질 요약: n_timepoints=281, mean FD=28.69, percFD>0.5=99.6%, mean tSNR=20.9; 움직임 높음 (mean FD 28.69, 99.6% 프레임 >0.5mm); tSNR 낮음 (20.9)
+- 파이프라인 기록: fpreproc/results/sub-002_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-002/sub-002_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-002/sub-002_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-002/sub-002_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-002/sub-002_coregistration_metadata.json, fpreproc/results/preprocessing/sub-002/sub-002_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-002/sub-002_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-002/sub-002_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-002/sub-002_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-002/sub-002_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-002/sub-002_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-002/sub-002_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-002/sub-002_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-002/sub-002_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-002/sub-002_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-002/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-003]
+- 품질 요약: n_timepoints=281, mean FD=0.91, percFD>0.5=72.2%, mean tSNR=55.3; 움직임 높음 (mean FD 0.91, 72.2% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-003_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-003/sub-003_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-003/sub-003_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-003/sub-003_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-003/sub-003_coregistration_metadata.json, fpreproc/results/preprocessing/sub-003/sub-003_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-003/sub-003_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-003/sub-003_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-003/sub-003_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-003/sub-003_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-003/sub-003_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-003/sub-003_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-003/sub-003_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-003/sub-003_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-003/sub-003_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-003/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-004]
+- 품질 요약: n_timepoints=281, mean FD=4.93, percFD>0.5=98.6%, mean tSNR=37.6; 움직임 높음 (mean FD 4.93, 98.6% 프레임 >0.5mm); tSNR 낮음 (37.6)
+- 파이프라인 기록: fpreproc/results/sub-004_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-004/sub-004_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-004/sub-004_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-004/sub-004_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-004/sub-004_coregistration_metadata.json, fpreproc/results/preprocessing/sub-004/sub-004_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-004/sub-004_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-004/sub-004_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-004/sub-004_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-004/sub-004_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-004/sub-004_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-004/sub-004_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-004/sub-004_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-004/sub-004_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-004/sub-004_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-004/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-005]
+- 품질 요약: n_timepoints=281, mean FD=3.57, percFD>0.5=96.8%, mean tSNR=43.9; 움직임 높음 (mean FD 3.57, 96.8% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-005_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-005/sub-005_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-005/sub-005_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-005/sub-005_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-005/sub-005_coregistration_metadata.json, fpreproc/results/preprocessing/sub-005/sub-005_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-005/sub-005_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-005/sub-005_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-005/sub-005_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-005/sub-005_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-005/sub-005_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-005/sub-005_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-005/sub-005_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-005/sub-005_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-005/sub-005_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-005/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-006]
+- 품질 요약: n_timepoints=269, mean FD=4.00, percFD>0.5=97.4%, mean tSNR=49.1; 움직임 높음 (mean FD 4.00, 97.4% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-006_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-006/sub-006_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-006/sub-006_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-006/sub-006_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-006/sub-006_coregistration_metadata.json, fpreproc/results/preprocessing/sub-006/sub-006_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-006/sub-006_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-006/sub-006_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-006/sub-006_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-006/sub-006_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-006/sub-006_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-006/sub-006_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-006/sub-006_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-006/sub-006_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-006/sub-006_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-006/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-007]
+- 품질 요약: n_timepoints=246, mean FD=6.60, percFD>0.5=99.6%, mean tSNR=43.1; 움직임 높음 (mean FD 6.60, 99.6% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-007_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-007/sub-007_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-007/sub-007_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-007/sub-007_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-007/sub-007_coregistration_metadata.json, fpreproc/results/preprocessing/sub-007/sub-007_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-007/sub-007_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-007/sub-007_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-007/sub-007_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-007/sub-007_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-007/sub-007_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-007/sub-007_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-007/sub-007_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-007/sub-007_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-007/sub-007_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-007/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-008]
+- 품질 요약: n_timepoints=281, mean FD=10.24, percFD>0.5=99.6%, mean tSNR=53.3; 움직임 높음 (mean FD 10.24, 99.6% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-008_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-008/sub-008_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-008/sub-008_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-008/sub-008_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-008/sub-008_coregistration_metadata.json, fpreproc/results/preprocessing/sub-008/sub-008_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-008/sub-008_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-008/sub-008_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-008/sub-008_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-008/sub-008_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-008/sub-008_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-008/sub-008_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-008/sub-008_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-008/sub-008_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-008/sub-008_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-008/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-009]
+- 품질 요약: n_timepoints=281, mean FD=3.08, percFD>0.5=95.4%, mean tSNR=44.1; 움직임 높음 (mean FD 3.08, 95.4% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-009_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-009/sub-009_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-009/sub-009_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-009/sub-009_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-009/sub-009_coregistration_metadata.json, fpreproc/results/preprocessing/sub-009/sub-009_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-009/sub-009_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-009/sub-009_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-009/sub-009_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-009/sub-009_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-009/sub-009_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-009/sub-009_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-009/sub-009_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-009/sub-009_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-009/sub-009_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-009/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-010]
+- 품질 요약: n_timepoints=281, mean FD=3.38, percFD>0.5=96.4%, mean tSNR=46.8; 움직임 높음 (mean FD 3.38, 96.4% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-010_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-010/sub-010_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-010/sub-010_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-010/sub-010_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-010/sub-010_coregistration_metadata.json, fpreproc/results/preprocessing/sub-010/sub-010_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-010/sub-010_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-010/sub-010_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-010/sub-010_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-010/sub-010_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-010/sub-010_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-010/sub-010_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-010/sub-010_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-010/sub-010_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-010/sub-010_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-010/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-011]
+- 품질 요약: n_timepoints=281, mean FD=3.01, percFD>0.5=97.2%, mean tSNR=53.0; 움직임 높음 (mean FD 3.01, 97.2% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-011_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-011/sub-011_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-011/sub-011_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-011/sub-011_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-011/sub-011_coregistration_metadata.json, fpreproc/results/preprocessing/sub-011/sub-011_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-011/sub-011_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-011/sub-011_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-011/sub-011_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-011/sub-011_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-011/sub-011_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-011/sub-011_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-011/sub-011_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-011/sub-011_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-011/sub-011_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-011/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-012]
+- 품질 요약: n_timepoints=281, mean FD=6.17, percFD>0.5=98.6%, mean tSNR=50.4; 움직임 높음 (mean FD 6.17, 98.6% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-012_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-012/sub-012_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-012/sub-012_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-012/sub-012_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-012/sub-012_coregistration_metadata.json, fpreproc/results/preprocessing/sub-012/sub-012_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-012/sub-012_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-012/sub-012_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-012/sub-012_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-012/sub-012_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-012/sub-012_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-012/sub-012_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-012/sub-012_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-012/sub-012_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-012/sub-012_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-012/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-013]
+- 품질 요약: n_timepoints=281, mean FD=7.82, percFD>0.5=99.3%, mean tSNR=43.4; 움직임 높음 (mean FD 7.82, 99.3% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-013_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-013/sub-013_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-013/sub-013_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-013/sub-013_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-013/sub-013_coregistration_metadata.json, fpreproc/results/preprocessing/sub-013/sub-013_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-013/sub-013_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-013/sub-013_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-013/sub-013_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-013/sub-013_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-013/sub-013_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-013/sub-013_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-013/sub-013_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-013/sub-013_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-013/sub-013_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-013/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-014]
+- 품질 요약: n_timepoints=281, mean FD=2.20, percFD>0.5=94.7%, mean tSNR=47.8; 움직임 높음 (mean FD 2.20, 94.7% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-014_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-014/sub-014_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-014/sub-014_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-014/sub-014_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-014/sub-014_coregistration_metadata.json, fpreproc/results/preprocessing/sub-014/sub-014_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-014/sub-014_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-014/sub-014_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-014/sub-014_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-014/sub-014_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-014/sub-014_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-014/sub-014_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-014/sub-014_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-014/sub-014_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-014/sub-014_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-014/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외
+
+[피험자 sub-015]
+- 품질 요약: n_timepoints=281, mean FD=2.92, percFD>0.5=97.5%, mean tSNR=41.9; 움직임 높음 (mean FD 2.92, 97.5% 프레임 >0.5mm)
+- 파이프라인 기록: fpreproc/results/sub-015_pipeline_results.json (단계/입력/출력/시간, 재현성 근거)
+- 전처리 결과: fpreproc/results/preprocessing/sub-015/sub-015_smoothed.nii.gz (정규화+스무딩 최종 4D); fpreproc/results/preprocessing/sub-015/sub-015_motion_params.txt (6자유도 모션 파라미터 및 도함수)
+  · QC/정합 관련 메타데이터: fpreproc/results/preprocessing/sub-015/sub-015_motion_correction_metadata.json, fpreproc/results/preprocessing/sub-015/sub-015_coregistration_metadata.json, fpreproc/results/preprocessing/sub-015/sub-015_normalization_metadata.json
+- 연결성 입력: fpreproc/results/connectivity/sub-015/sub-015_roi_timeseries.npy (AAL 116 ROI 시계열)
+- 기능적 연결성: 상관행렬 fpreproc/results/connectivity/sub-015/sub-015_fc_correlation.npy, 부분상관 fpreproc/results/connectivity/sub-015/sub-015_fc_partial_correlation.npy; 그래프 지표 fpreproc/results/connectivity/sub-015/sub-015_graph_metrics.json
+- ICA: 공간맵 fpreproc/results/connectivity/sub-015/sub-015_ica_components.nii.gz, 시간경과 fpreproc/results/connectivity/sub-015/sub-015_ica_timecourses.npy, 노이즈 라벨 fpreproc/results/connectivity/sub-015/sub-015_ica_classifications.json
+- 방향성 연결성: Granger fpreproc/results/connectivity/sub-015/sub-015_ec_granger.npy, Transfer Entropy fpreproc/results/connectivity/sub-015/sub-015_ec_transfer_entropy.npy
+- 시각화/품질 확인: fpreproc/results/visualization/sub-015/* (connectome 글라스브레인/원형도/행렬 PNG, 3D HTML, tSNR 맵, 평균 기능 이미지, ICA 컴포넌트 PNG)
+- 후속 권고: 움직임 큰 경우 스컴빙/ICA-AROMA 후 재계산; tSNR 저하 시 노이즈·정렬 재검토 및 필요 시 재처리/부분 제외

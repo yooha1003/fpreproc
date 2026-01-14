@@ -32,6 +32,9 @@ from connectivity.effective_connectivity import EffectiveConnectivity
 
 # Visualization
 from visualization.glass_brain_network import GlassBrainNetworkViz
+from visualization.effective_connectivity_viz import EffectiveConnectivityDirectedViz
+from visualization.effective_connectivity_source_sink_viz import EffectiveConnectivitySourceSinkViz
+from visualization.effective_connectivity_glass_brain_3d import EffectiveConnectivityGlassBrain3DViz
 from visualization.activation_patterns import ActivationPatternViz
 
 
@@ -326,11 +329,162 @@ class SingleSubjectPipeline:
                 results['steps_completed'].append('effective_connectivity')
 
             # =================================================================
-            # STEP 11: Network Visualization
+            # STEP 11: Effective Connectivity Visualization
+            # =================================================================
+            if 'effective_connectivity_viz' not in skip_steps:
+                self.logger.info("\n" + "="*80)
+                self.logger.info("STEP 11: Effective Connectivity Visualization")
+                self.logger.info("="*80)
+
+                ec_metadata = results.get('effective_connectivity')
+                ec_viz_results = {}
+
+                if not ec_metadata:
+                    self.logger.warning(
+                        "Effective connectivity results not found; skipping EC visualization."
+                    )
+                else:
+                    ec_viz = EffectiveConnectivityDirectedViz(self.config)
+                    for method, matrix_file in ec_metadata.get('results_files', {}).items():
+                        matrix_path = Path(matrix_file)
+                        if matrix_path.suffix != '.npy':
+                            self.logger.info(
+                                f"Skipping EC visualization for {method}: not a .npy matrix ({matrix_file})"
+                            )
+                            continue
+
+                        try:
+                            res = ec_viz.run(
+                                str(matrix_path),
+                                str(viz_dir),
+                                subject_id=subject_id,
+                                method=method,
+                            )
+                            ec_viz_results[method] = res
+                        except Exception as e:
+                            self.logger.warning(
+                                f"EC visualization failed for {subject_id} ({method}): {e}"
+                            )
+
+                if ec_viz_results:
+                    ec_viz_metadata = {
+                        'subject_id': subject_id,
+                        'effective_connectivity': ec_metadata,
+                        'visualizations': ec_viz_results,
+                    }
+                    ec_viz_metadata_file = viz_dir / f'{subject_id}_ec_viz_metadata.json'
+                    save_metadata(ec_viz_metadata, str(ec_viz_metadata_file))
+
+                    results['effective_connectivity_visualization'] = ec_viz_metadata
+                    results['steps_completed'].append('effective_connectivity_viz')
+
+            # =================================================================
+            # STEP 12: Effective Connectivity Source/Sink Visualization
+            # =================================================================
+            if 'effective_connectivity_source_sink_viz' not in skip_steps:
+                self.logger.info("\n" + "="*80)
+                self.logger.info("STEP 12: Effective Connectivity Source/Sink Visualization")
+                self.logger.info("="*80)
+
+                ec_metadata = results.get('effective_connectivity')
+                source_sink_results = {}
+
+                if not ec_metadata:
+                    self.logger.warning(
+                        "Effective connectivity results not found; skipping source/sink EC visualization."
+                    )
+                else:
+                    source_sink_viz = EffectiveConnectivitySourceSinkViz(self.config)
+                    for method, matrix_file in ec_metadata.get('results_files', {}).items():
+                        matrix_path = Path(matrix_file)
+                        if matrix_path.suffix != '.npy':
+                            self.logger.info(
+                                f"Skipping source/sink EC visualization for {method}: not a .npy matrix ({matrix_file})"
+                            )
+                            continue
+
+                        try:
+                            res = source_sink_viz.run(
+                                str(matrix_path),
+                                str(viz_dir),
+                                subject_id=subject_id,
+                                method=method,
+                            )
+                            source_sink_results[method] = res
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Source/sink EC visualization failed for {subject_id} ({method}): {e}"
+                            )
+
+                if source_sink_results:
+                    source_sink_metadata = {
+                        'subject_id': subject_id,
+                        'effective_connectivity': ec_metadata,
+                        'visualizations': source_sink_results,
+                    }
+                    source_sink_metadata_file = viz_dir / f'{subject_id}_ec_source_sink_viz_metadata.json'
+                    save_metadata(source_sink_metadata, str(source_sink_metadata_file))
+
+                    results['effective_connectivity_source_sink_visualization'] = source_sink_metadata
+                    results['steps_completed'].append('effective_connectivity_source_sink_viz')
+
+            # =================================================================
+            # STEP 13: Effective Connectivity 3D Glass Brain Visualization
+            # =================================================================
+            if 'effective_connectivity_glass_brain_3d_viz' not in skip_steps:
+                self.logger.info("\n" + "="*80)
+                self.logger.info("STEP 13: Effective Connectivity 3D Glass Brain Visualization")
+                self.logger.info("="*80)
+
+                ec_metadata = results.get('effective_connectivity')
+                ec_3d_results = {}
+
+                atlas_name = fc_results.get('atlas') or self.config.get('atlas', {}).get('default', 'AAL')
+
+                if not ec_metadata:
+                    self.logger.warning(
+                        "Effective connectivity results not found; skipping 3D EC visualization."
+                    )
+                else:
+                    ec_3d_viz = EffectiveConnectivityGlassBrain3DViz(self.config)
+                    for method, matrix_file in ec_metadata.get('results_files', {}).items():
+                        matrix_path = Path(matrix_file)
+                        if matrix_path.suffix != '.npy':
+                            continue
+
+                        try:
+                            res = ec_3d_viz.run(
+                                str(matrix_path),
+                                str(viz_dir),
+                                subject_id=subject_id,
+                                method=method,
+                                atlas=atlas_name,
+                            )
+                            ec_3d_results[method] = res
+                        except Exception as e:
+                            self.logger.warning(
+                                f"3D EC visualization failed for {subject_id} ({method}): {e}"
+                            )
+
+                if ec_3d_results:
+                    ec_3d_metadata = {
+                        'subject_id': subject_id,
+                        'atlas': atlas_name,
+                        'effective_connectivity': ec_metadata,
+                        'visualizations': ec_3d_results,
+                    }
+                    ec_3d_metadata_file = viz_dir / f'{subject_id}_ec_glass_brain_3d_viz_metadata.json'
+                    save_metadata(ec_3d_metadata, str(ec_3d_metadata_file))
+
+                    results['effective_connectivity_glass_brain_3d_visualization'] = ec_3d_metadata
+                    results['steps_completed'].append('effective_connectivity_glass_brain_3d_viz')
+
+            # =================================================================
+            # STEP 14: Network Visualization
             # =================================================================
             if 'network_viz' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 11: Network Visualization")
+                self.logger.info("STEP 14: Network Visualization")
                 self.logger.info("="*80)
 
                 # Use correlation matrix from FC
@@ -340,18 +494,19 @@ class SingleSubjectPipeline:
                 viz_net_results = viz_net.run(
                     str(conn_matrix_file),
                     str(viz_dir),
-                    subject_id
+                    subject_id,
+                    atlas_name=fc_results.get('atlas') or self.config.get('atlas', {}).get('default', 'AAL')
                 )
 
                 results['network_visualization'] = viz_net_results
                 results['steps_completed'].append('network_viz')
 
             # =================================================================
-            # STEP 12: Activation Pattern Visualization
+            # STEP 15: Activation Pattern Visualization
             # =================================================================
             if 'activation_viz' not in skip_steps:
                 self.logger.info("\n" + "="*80)
-                self.logger.info("STEP 12: Activation Pattern Visualization")
+                self.logger.info("STEP 15: Activation Pattern Visualization")
                 self.logger.info("="*80)
 
                 viz_act = ActivationPatternViz(self.config)

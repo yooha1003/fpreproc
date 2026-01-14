@@ -79,7 +79,9 @@ fpreproc/
 │   ├── visualization/                # Visualization tools
 │   │   ├── glass_brain_network.py
 │   │   ├── activation_patterns.py
-│   │   └── effective_connectivity_viz.py
+│   │   ├── effective_connectivity_viz.py
+│   │   ├── effective_connectivity_source_sink_viz.py
+│   │   └── effective_connectivity_glass_brain_3d.py
 │   │
 │   ├── utils/                        # Utility functions
 │   │   ├── data_loader.py
@@ -317,6 +319,19 @@ python scripts/visualization/effective_connectivity_viz.py \
     --top-k 150
 ```
 The matrix is assumed to have shape `[target, source]`; use `--min-weight` to drop weak links.
+
+#### Directed Effective Connectivity (3D connectome; netplotbrain-style)
+```bash
+python scripts/visualization/effective_connectivity_glass_brain_3d.py \
+    results/connectivity/sub-001/sub-001_ec_granger.npy \
+    results/visualization/sub-001 \
+    --subject sub-001 \
+    --method granger \
+    --atlas AAL \
+    --style netplotbrain \
+    --camera-buttons
+```
+Use `--export-png` to also save a static PNG (requires `plotly` + `kaleido`). If atlas downloads fail, set `--nilearn-data-dir` (or `NILEARN_DATA`) to point to an existing nilearn dataset cache (e.g., `~/nilearn_data`).
 
 ### Helper Scripts (exclude sub-007)
 

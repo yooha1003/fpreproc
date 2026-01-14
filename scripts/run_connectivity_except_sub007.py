@@ -15,6 +15,12 @@ from connectivity.effective_connectivity import EffectiveConnectivity  # noqa: E
 from visualization.effective_connectivity_viz import (  # noqa: E402
     EffectiveConnectivityDirectedViz,
 )
+from visualization.effective_connectivity_source_sink_viz import (  # noqa: E402
+    EffectiveConnectivitySourceSinkViz,
+)
+from visualization.effective_connectivity_glass_brain_3d import (  # noqa: E402
+    EffectiveConnectivityGlassBrain3DViz,
+)
 from visualization.glass_brain_network import GlassBrainNetworkViz  # noqa: E402
 from visualization.activation_patterns import ActivationPatternViz  # noqa: E402
 from utils.helpers import load_config  # noqa: E402
@@ -72,11 +78,47 @@ def process_subject(subject_id: str, func_img: Path, out_root: Path, config: dic
         except Exception as e:
             logger.warning(f"{subject_id}: EC visualization failed for {method}: {e}")
 
+    # EC source/sink visualization (node metrics)
+    ss_viz = EffectiveConnectivitySourceSinkViz(config)
+    ss_results = {}
+    for method, path in ec_results.get("results_files", {}).items():
+        try:
+            if Path(path).suffix != ".npy":
+                continue
+            res = ss_viz.run(
+                path,
+                str(viz_dir),
+                subject_id=subject_id,
+                method=method,
+            )
+            ss_results[method] = res
+        except Exception as e:
+            logger.warning(f"{subject_id}: EC source/sink viz failed for {method}: {e}")
+
+    # EC 3D directed connectome (BrainNet-like)
+    ec_3d_viz = EffectiveConnectivityGlassBrain3DViz(config)
+    ec_3d_results = {}
+    atlas_name = fc_results.get("atlas") or config.get("atlas", {}).get("default", "AAL")
+    for method, path in ec_results.get("results_files", {}).items():
+        try:
+            if Path(path).suffix != ".npy":
+                continue
+            res = ec_3d_viz.run(
+                path,
+                str(viz_dir),
+                subject_id=subject_id,
+                method=method,
+                atlas=atlas_name,
+            )
+            ec_3d_results[method] = res
+        except Exception as e:
+            logger.warning(f"{subject_id}: EC 3D viz failed for {method}: {e}")
+
     # Visualization
     corr_path = fc_results["connectivity_matrices"].get("correlation")
     if corr_path:
         viz_net = GlassBrainNetworkViz(config)
-        viz_net.run(corr_path, str(viz_dir), subject_id)
+        viz_net.run(corr_path, str(viz_dir), subject_id, atlas_name)
     else:
         logger.warning(f"{subject_id}: correlation matrix missing; skipping network viz.")
 
@@ -93,6 +135,8 @@ def process_subject(subject_id: str, func_img: Path, out_root: Path, config: dic
         "ica": ica_results,
         "ec": ec_results,
         "ec_viz": ec_viz_results,
+        "ec_source_sink_viz": ss_results,
+        "ec_glass_brain_3d_viz": ec_3d_results,
         "status": "completed",
     }
 
