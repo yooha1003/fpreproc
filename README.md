@@ -5,6 +5,7 @@ A comprehensive, modular pipeline for preprocessing resting-state fMRI data and 
 ## Features
 
 ### Preprocessing
+- **Brain Extraction**: ANTs (soft/hard), deepbet, FSL BET, nilearn fallback
 - **Motion Correction**: FSL MCFLIRT / AFNI 3dvolreg
 - **Slice Timing Correction**: AFNI 3dTshift with explicit `-tpattern` support
 - **Spatial Registration**: Functional to anatomical (FLIRT, ANTs SyN)
@@ -354,6 +355,19 @@ data:
 ### Preprocessing
 ```yaml
 preprocessing:
+  brain_extraction:
+    method: "deepbet"  # ants_soft, ants_hard, ants_syn, deepbet, bet, nilearn
+    strategy: "soft"   # used with ants_* (soft/hard)
+    template: "/data/data2/dataset/fpreproc/template/adult/T_template0.nii.gz"
+    probability_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumProbabilityMask.nii.gz"
+    registration_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumRegistrationMask.nii.gz"
+    deepbet:
+      path: "/data/data2/dataset/deepbet"
+      threshold: 0.5
+      n_dilate: 0
+      no_gpu: false
+      save_tiv: false
+
   motion_correction:
     reference_volume: "middle"
     cost_function: "normcorr"
@@ -407,6 +421,7 @@ registration:
           shrink_factors: "8x4x2x1"
           smoothing_sigmas: "3x2x1x0vox"
 ```
+Brain extraction supports ANTs (soft/hard or SyN), deepbet, FSL BET, or nilearn fallback. For deepbet, install the package or set `brain_extraction.deepbet.path` to a local checkout (default `/data/data2/dataset/deepbet`), and use `no_gpu: true` if CUDA is unavailable.
 
 ### Atlases
 ```yaml
