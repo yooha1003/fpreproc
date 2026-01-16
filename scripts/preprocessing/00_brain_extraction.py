@@ -9,6 +9,7 @@ import subprocess
 import logging
 import os
 import shutil
+import importlib
 import numpy as np
 from pathlib import Path
 from typing import Optional, Tuple
@@ -37,10 +38,12 @@ class BrainExtraction:
 
         self.config = config
         self.params = config.get('preprocessing', {}).get('brain_extraction', {})
-        # 강제: YH + ANTs soft 전략만 사용
-        self.method = 'ants_soft'
-        self.params['method'] = self.method
-        self.params['strategy'] = 'soft'
+        self.method = str(self.params.get('method', 'ants_soft')).lower()
+        self.strategy = str(self.params.get('strategy', 'soft')).lower()
+        if self.method in ('ants_soft', 'soft'):
+            self.strategy = 'soft'
+        elif self.method in ('ants_hard', 'hard'):
+            self.strategy = 'hard'
         base_dir = Path(__file__).resolve().parents[2]
         self.fallback_ants_script = base_dir / 'setup' / 'antsBrainExtraction.sh'
         self.utils_ants_script = base_dir / 'scripts' / 'utils' / 'antsBrainExtraction.sh'
@@ -96,7 +99,6 @@ class BrainExtraction:
                 os.chmod(script, 0o755)
         self._fslreorient = shutil.which('fslreorient2std')
         self._bet = shutil.which('bet')
-        self.strategy = self.params.get('strategy', 'soft').lower()
         self.keep_intermediate = bool(self.params.get('keep_intermediate', False))
 
     def _resolve_template_path(self, candidate: Optional[str]) -> Optional[Path]:
@@ -220,6 +222,68 @@ class BrainExtraction:
         nib.save(nib.Nifti1Image(mask_data, brain_img.affine, brain_img.header), str(mask_file))
 
         return brain_file, mask_file
+
+    def _import_deepbet(self, deepbet_root: Optional[str]):
+        """Import deepbet with optional local repo path injection."""
+        try:
+            return importlib.import_module('deepbet')
+        except ImportError:
+            if not deepbet_root:
+                return None
+
+        root = Path(deepbet_root).expanduser().resolve()
+        candidates = []
+        if root.is_dir():
+            if (root / 'deepbet').is_dir():
+                candidates.append(root)
+            if (root / '__init__.py').exists():
+                candidates.append(root.parent)
+
+        for candidate in candidates:
+            candidate_str = str(candidate)
+            if candidate_str not in sys.path:
+                sys.path.insert(0, candidate_str)
+            try:
+                return importlib.import_module('deepbet')
+            except ImportError:
+                continue
+
+        return None
+
+    def _run_deepbet(self, anat_img: str, output_dir: Path,
+                     subject_id: str) -> Tuple[Path, Path, Optional[Path]]:
+        """Run deepbet brain extraction when available."""
+        deepbet_params = self.params.get('deepbet', {})
+        deepbet_root = deepbet_params.get('path', '/data/data2/dataset/deepbet')
+        threshold = float(deepbet_params.get('threshold', 0.5))
+        n_dilate = int(deepbet_params.get('n_dilate', 0))
+        no_gpu = bool(deepbet_params.get('no_gpu', False))
+        save_tiv = bool(deepbet_params.get('save_tiv', False))
+
+        deepbet = self._import_deepbet(deepbet_root)
+        if deepbet is None:
+            raise ImportError("deepbet is not available; install it or set deepbet.path")
+
+        brain_file = output_dir / f'{subject_id}_anat_brain.nii.gz'
+        mask_file = output_dir / f'{subject_id}_anat_brain_mask.nii.gz'
+        tiv_file = output_dir / f'{subject_id}_anat_brain_tiv.csv' if save_tiv else None
+
+        logger.info("Running deepbet brain extraction...")
+        deepbet.run_bet(
+            [anat_img],
+            [str(brain_file)],
+            [str(mask_file)],
+            [str(tiv_file)] if tiv_file else None,
+            threshold=threshold,
+            n_dilate=n_dilate,
+            no_gpu=no_gpu,
+            skip_broken=False
+        )
+
+        if not brain_file.exists() or not mask_file.exists():
+            raise FileNotFoundError("deepbet outputs not found after run.")
+
+        return brain_file, mask_file, tiv_file
 
     def _n4_bias_correct(self, input_img: str, output_img: str) -> str:
         """Perform N4 bias field correction."""
@@ -594,25 +658,68 @@ class BrainExtraction:
         brain_file: Path
         mask_file: Path
         method_used = None
+        deepbet_tiv: Optional[Path] = None
 
-        try:
-            template = self.params.get('template')
-            prob_mask = self.params.get('probability_mask')
-            reg_mask = self.params.get('registration_mask')
+        method = self.method
 
-            brain_file, mask_file = self._run_yh_brainext(
-                anat_img, output_dir, subject_id, self.strategy, template, prob_mask, reg_mask
-            )
-            method_used = f'ants_{self.strategy}'
-        except Exception as e:
-            logger.warning("ANTs brain extraction failed (%s); attempting BET fallback.", e)
+        if method in ('deepbet', 'deepbet_cli', 'deepbet-cli'):
             try:
-                brain_file, mask_file = self.run_bet(anat_img, output_dir, subject_id)
-                method_used = 'bet'
-            except Exception as e2:
-                logger.warning("BET failed (%s); using nilearn fallback.", e2)
+                brain_file, mask_file, deepbet_tiv = self._run_deepbet(anat_img, output_dir, subject_id)
+                method_used = 'deepbet'
+            except Exception as e:
+                logger.warning("Deepbet brain extraction failed (%s); falling back to ANTs.", e)
+                method = 'ants_soft'
+
+        if method_used is None:
+            if method in ('bet', 'fsl_bet'):
+                try:
+                    brain_file, mask_file = self.run_bet(anat_img, output_dir, subject_id)
+                    method_used = 'bet'
+                except Exception as e:
+                    logger.warning("BET failed (%s); using nilearn fallback.", e)
+                    brain_file, mask_file = self.run_nilearn_fallback(anat_img, output_dir, subject_id)
+                    method_used = 'nilearn'
+            elif method in ('nilearn', 'nilearn_mask'):
                 brain_file, mask_file = self.run_nilearn_fallback(anat_img, output_dir, subject_id)
                 method_used = 'nilearn'
+            elif method == 'ants_syn':
+                try:
+                    template = self.params.get('template')
+                    prob_mask = self.params.get('probability_mask')
+                    brain_file, mask_file = self.run_ants_syn(
+                        anat_img, template, prob_mask, output_dir, subject_id
+                    )
+                    method_used = 'ants_syn'
+                except Exception as e:
+                    logger.warning("ANTs SyN brain extraction failed (%s); attempting BET fallback.", e)
+                    try:
+                        brain_file, mask_file = self.run_bet(anat_img, output_dir, subject_id)
+                        method_used = 'bet'
+                    except Exception as e2:
+                        logger.warning("BET failed (%s); using nilearn fallback.", e2)
+                        brain_file, mask_file = self.run_nilearn_fallback(anat_img, output_dir, subject_id)
+                        method_used = 'nilearn'
+            else:
+                if method not in ('ants_soft', 'ants_hard', 'ants', 'yh', 'yh_ants', 'auto'):
+                    logger.warning("Unknown brain extraction method '%s'; using ANTs.", method)
+                try:
+                    template = self.params.get('template')
+                    prob_mask = self.params.get('probability_mask')
+                    reg_mask = self.params.get('registration_mask')
+
+                    brain_file, mask_file = self._run_yh_brainext(
+                        anat_img, output_dir, subject_id, self.strategy, template, prob_mask, reg_mask
+                    )
+                    method_used = f'ants_{self.strategy}'
+                except Exception as e:
+                    logger.warning("ANTs brain extraction failed (%s); attempting BET fallback.", e)
+                    try:
+                        brain_file, mask_file = self.run_bet(anat_img, output_dir, subject_id)
+                        method_used = 'bet'
+                    except Exception as e2:
+                        logger.warning("BET failed (%s); using nilearn fallback.", e2)
+                        brain_file, mask_file = self.run_nilearn_fallback(anat_img, output_dir, subject_id)
+                        method_used = 'nilearn'
 
         metadata = {
             'subject_id': subject_id,
@@ -622,6 +729,16 @@ class BrainExtraction:
             'method': method_used,
             'strategy': self.strategy,
         }
+        if method_used == 'deepbet':
+            deepbet_params = self.params.get('deepbet', {})
+            metadata['deepbet'] = {
+                'path': deepbet_params.get('path', '/data/data2/dataset/deepbet'),
+                'threshold': float(deepbet_params.get('threshold', 0.5)),
+                'n_dilate': int(deepbet_params.get('n_dilate', 0)),
+                'no_gpu': bool(deepbet_params.get('no_gpu', False)),
+            }
+            if deepbet_tiv:
+                metadata['deepbet']['tiv_csv'] = str(deepbet_tiv)
 
         # QC overlay: background (yh/reorient/original) + extracted brain (combined sagittal/coronal/axial)
         try:

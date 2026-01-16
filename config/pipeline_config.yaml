@@ -11,8 +11,8 @@ data:
 preprocessing:
   # Brain extraction (skull-stripping) for anatomical images
   brain_extraction:
-    method: "ants_soft"  # Forced: YH + ANTs soft strategy
-    strategy: "soft"  # Always soft (init reg + BE)
+    method: "deepbet"  # Options: ants_soft, ants_hard, ants_syn, deepbet, bet, nilearn
+    strategy: "soft"  # Used when method is ants/ants_*
     template: "/data/data2/dataset/fpreproc/template/adult/T_template0.nii.gz"
     probability_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumProbabilityMask.nii.gz"
     registration_mask: "/data/data2/dataset/fpreproc/template/adult/T_template0_BrainCerebellumRegistrationMask.nii.gz"
@@ -21,6 +21,12 @@ preprocessing:
     bet:
       frac: 0.5
       robust: true
+    deepbet:
+      path: "/data/data2/dataset/deepbet"
+      threshold: 0.5
+      n_dilate: 0
+      no_gpu: false
+      save_tiv: false
 
   # Motion correction
   motion_correction:
